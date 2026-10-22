@@ -1,3 +1,4 @@
+import type { ShipPaint } from '../render/ships/ship-renderer';
 import type { SeaRenderer } from '../render/sea-renderer';
 import type { ShipModel } from '../render/ships/forge/spec';
 import { DuelAi, AGGRESSIVE, type AiProfile } from '../sim/combat/ai';
@@ -39,7 +40,7 @@ export interface EnemyOptions {
   torpedoes: TorpedoWorld;
   smoke: SmokeField;
   /** Hull and upperworks colour, linear. */
-  paint?: { hull: [number, number, number]; superstructure: [number, number, number] };
+  paint?: Partial<ShipPaint>;
 }
 
 /**
@@ -54,7 +55,7 @@ export class EnemyShip extends ShipActor {
   private elapsed = 0;
 
   constructor(sea: SeaRenderer, private readonly setup: ShipSetup, model: ShipModel, opts: EnemyOptions) {
-    super(sea, model, setup.maxSpeedKn, opts.paint ?? { hull: [0.2, 0.215, 0.23], superstructure: [0.25, 0.265, 0.28] }, setup.handling);
+    super(sea, model, setup.maxSpeedKn, { hull: [0.2, 0.215, 0.23], superstructure: [0.25, 0.265, 0.28], ...opts.paint }, setup.handling);
     this.plan = opts.plan ?? null;
     this.combatant = new Combatant({
       id: opts.id,

@@ -11,6 +11,7 @@ import type { MuzzleShot } from '../gunnery/battery';
 import { Gunnery, type AerialObserver, type Contact } from '../gunnery/gunnery';
 import type { SalvoReport } from '../gunnery/spotting';
 import type { ShellKind } from '../gunnery/shells';
+import type { HitMark } from '../../render/ships/decals';
 import { mountsFromSpec } from '../gunnery/mounts';
 import type { RangefinderSpec } from '../gunnery/rangefinder';
 import type { DiveInfo, ImpactInfo, ImpactResolution, ShellEvent } from '../gunnery/shell-world';
@@ -128,6 +129,8 @@ export class Combatant implements Contact {
   onShot?: (shot: MuzzleShot, unit: BatteryUnit) => void;
   onShellEvent?: (event: ShellEvent, unit: BatteryUnit) => void;
   onReport?: (report: SalvoReport, unit: BatteryUnit) => void;
+  /** A shell struck her hull or works: where, and what became of it, for the marks it leaves on her. */
+  onHitMark?: (mark: HitMark) => void;
 
   private readonly frameOf: () => ShipFrame;
   private readonly rng: Rng;
@@ -346,7 +349,7 @@ export class Combatant implements Contact {
       { origin: from, dir, segment },
     );
     if (!trace) return null;
-    return this.apply(trace, spec.massKg, spec.diameterM * 1000, filler(spec.massKg, spec.fillerKg), spec.kind === 'he');
+    return this.apply(trace, spec.massKg, spec.diameterM * 1000, filler(spec.massKg, spec.fillerKg), spec.kind === 'he', dir);
   };
 
   /** A shell that fell close by and may have kept going under the water into the hull. */
@@ -373,8 +376,15 @@ export class Combatant implements Contact {
     for (const b of this.batteries) if (!this.autoBatteries.has(b)) b.gunnery.setShell(kind);
   }
 
-  private apply(trace: TraceResult, massKg: number, diameterMm: number, fillerKg: number, highExplosive = false): ImpactResolution {
+  private apply(trace: TraceResult, massKg: number, diameterMm: number, fillerKg: number, highExplosive = false, dir?: V3): ImpactResolution {
     this.damage.applyTrace(trace, { massKg, diameterMm, fillerKg, highExplosive });
+    if (this.onHitMark && dir) {
+      // The surface faces the way the shell came from, along the axis of the plate it struck.
+      const axis = trace.first.axis;
+      const normal: [number, number, number] = [0, 0, 0];
+      normal[axis] = dir[axis] > 0 ? -1 : 1;
+      this.onHitMark({ at: trace.entry, normal, caliberM: diameterMm / 1000, kind: trace.kind, plate: trace.first.kind });
+    }
     this.impacts[trace.kind]++;
     const key = `${trace.first.kind}:${trace.kind}`;
     this.byPlate[key] = (this.byPlate[key] ?? 0) + 1;

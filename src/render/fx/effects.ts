@@ -490,6 +490,11 @@ export class Effects {
     });
   }
 
+  /** A torpedo leaves its tube: a small splash where it enters the water. (A call of its own, so that it can be heard.) */
+  torpedoLaunch(x: number, z: number): void {
+    this.shellSplash(x, z, 0.1);
+  }
+
   /** The column of water a torpedo throws up against a hull, taller than any shell's, and the black smoke after it. */
   torpedoBlast(x: number, z: number): void {
     this.shellSplash(x, z, 0.85);

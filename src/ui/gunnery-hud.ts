@@ -13,7 +13,7 @@ const QUALITY_LABEL: Record<TrackQuality, string> = {
 };
 
 const HINTS: Record<InputDevice, string> = {
-  'keyboard-mouse': 'click ship: designate  ·  Space fire  ·  hold right-button / V: director sight  ·  Q/E range  ·  [ ] deflection  ·  T auto-spot  ·  1/2 AP/HE shell  ·  Tab next target  ·  B cease fire  ·  F torpedo tubes  ·  M plot  ·  C shell cam  ·  R replay',
+  'keyboard-mouse': 'click ship: designate  ·  Space fire  ·  hold right-button / V: director sight  ·  Q/E range  ·  [ ] deflection  ·  T auto-spot  ·  1/2 AP/HE shell  ·  Tab next target  ·  B cease fire  ·  F torpedo tubes  ·  M plot  ·  C shell cam  ·  R replay  ·  N sound',
   gamepad: 'RB/LB target  ·  hold LT sight (R3/L3 zoom)  ·  RT fire  ·  D-pad corrections  ·  A auto-spot (with LT: AP/HE shell)  ·  B cease fire  ·  X torpedo tubes  ·  SELECT plot  ·  R3 shell cam  ·  LT+Y replay',
   touch: '',
 };

@@ -1340,9 +1340,16 @@ body[data-torpedo='1'] .ghints:not(.thints) {
   width: 62px;
   height: 62px;
 }
-/* The school's coach sits in that corner: the two buttons wait until it is done. */
+.gtouch .soundbtn {
+  left: calc(max(16px, env(safe-area-inset-left)) + 144px);
+  top: 120px;
+  width: 62px;
+  height: 62px;
+}
+/* The school's coach sits in that corner: the three buttons wait until it is done. */
 body[data-tutorial='1'] .gtouch .shellcam,
-body[data-tutorial='1'] .gtouch .replaybtn {
+body[data-tutorial='1'] .gtouch .replaybtn,
+body[data-tutorial='1'] .gtouch .soundbtn {
   display: none;
 }
 

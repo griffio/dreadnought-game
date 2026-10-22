@@ -1,3 +1,4 @@
+import { loadWeathering } from './ships/weathering';
 import { degToRad, type Vec3 } from '../math/vec3';
 import type { GpuContext } from '../platform/gpu-device';
 import { compassToWaveDir, heightFromModes } from '../sim/ocean/spectrum';
@@ -191,6 +192,7 @@ export class SeaRenderer {
     });
     const field = await OceanField.create({ device, size: quality.oceanSize, lengths: CASCADE_LENGTHS });
     const shadow = new ShadowMap(device, quality.shadowSize);
+    const weathering = await loadWeathering(device);
     const ships = await ShipRenderer.create({
       device,
       sceneBuffer,
@@ -198,6 +200,7 @@ export class SeaRenderer {
       cloudLut: atmosphere.cloudLut,
       envSampler: atmosphere.envSampler,
       shadow,
+      weathering,
       colorFormat: HDR_FORMAT,
       depthFormat: DEPTH_FORMAT,
       sampleCount: quality.msaa,
@@ -426,7 +429,7 @@ export class SeaRenderer {
     this.wake.setVertices(sink.count);
 
     device.queue.writeBuffer(this.sceneBuffer, 0, s.data, 0, SCENE_UPLOAD_FLOATS);
-    this.ships.update(camera.position);
+    this.ships.update(camera.position, this.simTime);
     this.land.update(camera);
     const drawFx = !this.debug.skipFx;
     if (drawFx) {

@@ -6,6 +6,7 @@ import haze from '../shaders/haze.wgsl?raw';
 import scene from '../shaders/scene.wgsl?raw';
 import shadowChunk from '../shaders/shadow.wgsl?raw';
 import skyMap from '../shaders/sky_map.wgsl?raw';
+import { DECAL_FLOATS, DecalSet, MAX_DECALS } from './decals';
 import { shipModelMatrix, type ShipPose } from './pose-matrix';
 import { MAX_NODES, ShipRig } from './rig';
 import { SHADOW_FORMAT, type ShadowMap } from './shadow-map';
@@ -14,9 +15,10 @@ import shipWgsl from './ship.wgsl?raw';
 import shipU from './ship_u.wgsl?raw';
 import shadowWgsl from './ship_shadow.wgsl?raw';
 import { VERTEX_STRIDE_BYTES } from './forge/mesh-builder';
+import type { WeatheringTextures } from './weathering';
 
-/** Floats in the ShipU uniform: model(16) + nodes(96*16) + three vec4. */
-const UNIFORM_FLOATS = 16 + MAX_NODES * 16 + 12;
+/** Floats in the ShipU uniform: model(16) + nodes(96*16) + three vec4 of paint + a vec4 of clock + the decals. */
+const UNIFORM_FLOATS = 16 + MAX_NODES * 16 + 12 + 4 + MAX_DECALS * DECAL_FLOATS;
 
 export interface ShipPaint {
   hull: Vec3;
@@ -25,6 +27,8 @@ export interface ShipPaint {
   wetness: number;
   /** A fort: the deck is poured concrete, not planks. */
   concrete?: boolean;
+  /** 0 as new, 1 long at sea: how much rust, wear and grime the ship shows (default 0.55). */
+  weathering?: number;
 }
 
 export const ADMIRALTY_GREY: ShipPaint = {
@@ -40,6 +44,8 @@ export class ShipInstance {
   paint: ShipPaint = { ...ADMIRALTY_GREY };
   /** False once the ship has gone under: it is neither drawn nor shadowed. */
   visible = true;
+  /** The marks of the hits she has taken, projected onto her hull by the shader. */
+  readonly decals = new DecalSet();
   /** Metres: none of the ship nearer the camera than this is drawn (the director's sight sits among her mast, and sees out of it). */
   cutaway = 0;
 
@@ -83,7 +89,7 @@ export class ShipInstance {
   }
 
   /** Pack pose, rig and paint into the uniform buffer. */
-  write(device: GPUDevice, cameraPos: Vec3): void {
+  write(device: GPUDevice, cameraPos: Vec3, simTime = 0): void {
     this.rig.update();
     shipModelMatrix(this.pose, cameraPos, this.model);
     const d = this.data;
@@ -91,6 +97,8 @@ export class ShipInstance {
     d.set(this.rig.matrices, 16);
     const o = 16 + MAX_NODES * 16;
     d.set([...this.paint.hull, 0, ...this.paint.superstructure, 0, this.paint.wetness, this.paint.concrete ? 1 : 0, this.cutaway, 0], o);
+    d.set([simTime, this.paint.weathering ?? 0.55, this.decals.count, 0], o + 12);
+    this.decals.pack(d, o + 16);
     device.queue.writeBuffer(this.uniformBuffer, 0, d);
   }
 
@@ -106,6 +114,8 @@ export interface ShipRendererOptions {
   cloudLut: GPUTexture;
   envSampler: GPUSampler;
   shadow: ShadowMap;
+  /** The weathering and decal pictures. */
+  weathering: WeatheringTextures;
   colorFormat: GPUTextureFormat;
   depthFormat: GPUTextureFormat;
   sampleCount: number;
@@ -177,6 +187,9 @@ export class ShipRenderer {
           { binding: 0, resource: opts.skyView.createView() },
           { binding: 1, resource: opts.cloudLut.createView() },
           { binding: 2, resource: opts.envSampler },
+          { binding: 3, resource: opts.weathering.weather.createView({ dimension: '2d-array' }) },
+          { binding: 4, resource: opts.weathering.decals.createView({ dimension: '2d-array' }) },
+          { binding: 5, resource: opts.weathering.sampler },
         ],
       }),
       device.createBindGroup({
@@ -202,8 +215,8 @@ export class ShipRenderer {
   }
 
   /** Upload every ship's pose and rig. Call once per frame before encoding. */
-  update(cameraPos: Vec3): void {
-    for (const s of this.ships) s.write(this.device, cameraPos);
+  update(cameraPos: Vec3, simTime = 0): void {
+    for (const s of this.ships) s.write(this.device, cameraPos, simTime);
   }
 
   draw(pass: GPURenderPassEncoder): void {

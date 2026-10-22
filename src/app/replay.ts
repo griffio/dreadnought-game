@@ -26,6 +26,7 @@ export const RECORDED_EFFECTS = [
   'flame',
   'torpedoWake',
   'torpedoBlast',
+  'torpedoLaunch',
   'screenPuff',
   'aircraft',
   'mineMarker',

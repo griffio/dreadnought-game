@@ -1,7 +1,9 @@
+import type { SoundState } from '../audio/director';
+import type { Listener } from '../audio/spatial';
 import { applyRefits, noRefits, type RefitLevels } from '../campaign/refits';
 import { fortShipSpec } from '../data/forts/fort-model';
 import { narrowsFortSpecs, narrowsMines, narrowsTerrain } from '../data/missions/narrows';
-import { shipById, type ShipEntry, type ShipId } from '../data/ships/roster';
+import { paintOf, shipById, type ShipEntry, type ShipId } from '../data/ships/roster';
 import type { Intent } from '../input/intent';
 import type { Camera } from '../render/camera';
 import type { SeaRenderer } from '../render/sea-renderer';
@@ -28,6 +30,7 @@ import { mountsFromSpec } from '../sim/gunnery/mounts';
 import { SpotterPlane } from '../sim/air/spotter';
 import { MineField } from '../sim/mines/mines';
 import { Rng } from '../sim/rng';
+import { TELEGRAPH_MIN } from '../sim/ships/dynamics';
 import { Grounding } from '../sim/ships/grounding';
 import type { Terrain } from '../sim/terrain/terrain';
 import { shipPointToWorld, type ShipFrame } from '../sim/ships/frame';
@@ -271,7 +274,7 @@ export class Game {
     const playerSetup = pacedSetup(applyRefits(this.playerEntry.setup, options.refits ?? noRefits()), pace);
     this.playerSetup = playerSetup;
     this.director = playerSetup.director ?? DIRECTOR_DEFAULT;
-    this.player = new PlayerShip(sea, buildShip(this.playerEntry.spec), playerSetup.maxSpeedKn, this.playerEntry.paint, playerSetup.handling);
+    this.player = new PlayerShip(sea, buildShip(this.playerEntry.spec), playerSetup.maxSpeedKn, paintOf(this.playerEntry), playerSetup.handling);
     this.player.helmRate *= pace.rudder;
     this.playerCombatant = new Combatant({
       id: PLAYER_ID,
@@ -313,7 +316,7 @@ export class Game {
           foe: () => this.playerCombatant,
           torpedoes: this.arena.torpedoes,
           smoke: this.arena.smoke,
-          paint: entry.paint,
+          paint: paintOf(entry),
         };
         const enemySetup = pacedSetup(entry.setup, pace);
         const enemy = new EnemyShip(
@@ -552,6 +555,7 @@ export class Game {
       }
     };
     c.onShellEvent = (e: ShellEvent) => this.shellEvent(e);
+    c.onHitMark = (mark) => this.actorOf(c).markHit(mark, this.simTime);
     if (ours) {
       c.onReport = (r: SalvoReport, unit: BatteryUnit) => {
         // The self-directing 12-pounders only report what they hit: their misses would drown the main battery's calls.
@@ -608,7 +612,7 @@ export class Game {
   }
 
   private torpedoLaunched(c: Combatant, t: Torpedo): void {
-    this.sea.fx.shellSplash(t.x, t.z, 0.1);
+    this.sea.fx.torpedoLaunch(t.x, t.z);
     if (c === this.playerCombatant) {
       if (this.simTime - (this.lastLaunchCall.get(c) ?? -99) > 2) this.say('info', 'Torpedoes running.');
       this.lastLaunchCall.set(c, this.simTime);
@@ -1315,6 +1319,61 @@ export class Game {
         fx.flame(w[0], w[1], w[2], 1);
       }
     }
+  }
+
+  // ---- sound -------------------------------------------------------------------------------------
+
+  private readonly soundSunk = new Set<Combatant>();
+  private lastSunkAt: [number, number] | null = null;
+
+  /** What the sound director hears of the fight: the player's engines and hull, the fires, the enemy's shells coming down. */
+  soundState(listener: Listener, timeScale: number, paused: boolean): SoundState {
+    const p = this.playerCombatant;
+    const d = p.dynamics;
+    const dist = (x: number, z: number): number => Math.hypot(x - listener.x, z - listener.z);
+    let fireDistance = Infinity;
+    let fires = 0;
+    const incoming: SoundState['incoming'] = [];
+    for (const c of this.combatants()) {
+      if (c.damage.alive && c.damage.fires > 0) {
+        fires++;
+        fireDistance = Math.min(fireDistance, dist(c.x, c.z));
+      }
+      if ((c.damage.status === 'sinking' || c.damage.status === 'sunk') && !this.soundSunk.has(c)) {
+        this.soundSunk.add(c);
+        this.lastSunkAt = [c.x, c.z];
+      }
+      if (c === p) continue;
+      c.batteries.forEach((b, bi) => {
+        for (const shell of b.gunnery.world.shells) {
+          const st = shell.state;
+          const distance = Math.hypot(st.x - p.x, st.z - p.z);
+          if (distance < 900) incoming.push({ id: `${c.id}.${bi}.${shell.salvo}.${shell.id}`, distance, falling: st.vy < 0 });
+        }
+      });
+    }
+    const turrets = this.status().turrets.filter((t) => t.enabled && t.bears);
+    const slewing = turrets.length > 0 ? turrets.filter((t) => !t.aligned && !t.firing).length / turrets.length : 0;
+    return {
+      listener,
+      timeScale,
+      paused,
+      speedFrac: Math.min(Math.abs(d.speedKnots) / d.handling.maxSpeedKn, 1),
+      power: Math.abs(d.handling.telegraphFraction[d.telegraph - TELEGRAPH_MIN] ?? 0) * d.powerFactor,
+      telegraph: d.telegraph,
+      wind: this.sea.params.windSpeed,
+      fireDistance,
+      fires,
+      turretMotion: slewing,
+      flooding: p.damage.alive && p.damage.floodedTonnes > 50,
+      damage: Math.min(1, 1 - p.damage.crewFraction + 0.1 * p.damage.fires),
+      turning: Math.abs(d.yawRate) > 0.015,
+      incoming,
+      threats: this.threats().length,
+      sunk: this.soundSunk.size,
+      sunkDistance: this.lastSunkAt ? dist(this.lastSunkAt[0], this.lastSunkAt[1]) : Infinity,
+      planeDistance: this.plane?.flying ? dist(this.plane.x, this.plane.z) : null,
+    };
   }
 
   // ---- views -------------------------------------------------------------------------------------

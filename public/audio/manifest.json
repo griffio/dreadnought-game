@@ -1,0 +1,388 @@
+{
+ "sounds": {
+  "splash-small-1": {
+   "file": "splash-small-1.m4a",
+   "duration": 2.78,
+   "bus": "sfx",
+   "loop": false,
+   "source": "naval-battle-set",
+   "licence": "CC0"
+  },
+  "splash-small-2": {
+   "file": "splash-small-2.m4a",
+   "duration": 2.67,
+   "bus": "sfx",
+   "loop": false,
+   "source": "naval-battle-set",
+   "licence": "CC0"
+  },
+  "splash-big-1": {
+   "file": "splash-big-1.m4a",
+   "duration": 2.55,
+   "bus": "sfx",
+   "loop": false,
+   "source": "naval-battle-set",
+   "licence": "CC0"
+  },
+  "splash-big-2": {
+   "file": "splash-big-2.m4a",
+   "duration": 2.43,
+   "bus": "sfx",
+   "loop": false,
+   "source": "naval-battle-set",
+   "licence": "CC0"
+  },
+  "splash-big-3": {
+   "file": "splash-big-3.m4a",
+   "duration": 2.57,
+   "bus": "sfx",
+   "loop": false,
+   "source": "naval-battle-set",
+   "licence": "CC0"
+  },
+  "splash-big-4": {
+   "file": "splash-big-4.m4a",
+   "duration": 2.36,
+   "bus": "sfx",
+   "loop": false,
+   "source": "naval-battle-set",
+   "licence": "CC0"
+  },
+  "splash-big-5": {
+   "file": "splash-big-5.m4a",
+   "duration": 2.36,
+   "bus": "sfx",
+   "loop": false,
+   "source": "naval-battle-set",
+   "licence": "CC0"
+  },
+  "splash-big-6": {
+   "file": "splash-big-6.m4a",
+   "duration": 1.53,
+   "bus": "sfx",
+   "loop": false,
+   "source": "naval-battle-set",
+   "licence": "CC0"
+  },
+  "splash-big-7": {
+   "file": "splash-big-7.m4a",
+   "duration": 2.15,
+   "bus": "sfx",
+   "loop": false,
+   "source": "naval-battle-set",
+   "licence": "CC0"
+  },
+  "splash-big-8": {
+   "file": "splash-big-8.m4a",
+   "duration": 1.6,
+   "bus": "sfx",
+   "loop": false,
+   "source": "naval-battle-set",
+   "licence": "CC0"
+  },
+  "hit-burst-3": {
+   "file": "hit-burst-3.m4a",
+   "duration": 1.48,
+   "bus": "sfx",
+   "loop": false,
+   "source": "naval-battle-set",
+   "licence": "CC0"
+  },
+  "hit-burst-4": {
+   "file": "hit-burst-4.m4a",
+   "duration": 1.48,
+   "bus": "sfx",
+   "loop": false,
+   "source": "naval-battle-set",
+   "licence": "CC0"
+  },
+  "gun-light-3": {
+   "file": "gun-light-3.m4a",
+   "duration": 0.99,
+   "bus": "sfx",
+   "loop": false,
+   "source": "naval-battle-set",
+   "licence": "CC0"
+  },
+  "gun-light-4": {
+   "file": "gun-light-4.m4a",
+   "duration": 1.62,
+   "bus": "sfx",
+   "loop": false,
+   "source": "naval-battle-set",
+   "licence": "CC0"
+  },
+  "ship-movement": {
+   "file": "ship-movement.m4a",
+   "duration": 9.98,
+   "bus": "ambience",
+   "loop": true,
+   "source": "naval-battle-set",
+   "licence": "CC0"
+  },
+  "gun-heavy-1": {
+   "file": "gun-heavy-1.m4a",
+   "duration": 3.99,
+   "bus": "sfx",
+   "loop": false,
+   "source": "elevenlabs",
+   "licence": "ElevenLabs terms of service (generated audio; whether commercial use is allowed depends on the plan the sounds were made under)"
+  },
+  "gun-heavy-2": {
+   "file": "gun-heavy-2.m4a",
+   "duration": 3.99,
+   "bus": "sfx",
+   "loop": false,
+   "source": "elevenlabs",
+   "licence": "ElevenLabs terms of service (generated audio; whether commercial use is allowed depends on the plan the sounds were made under)"
+  },
+  "gun-heavy-3": {
+   "file": "gun-heavy-3.m4a",
+   "duration": 2.87,
+   "bus": "sfx",
+   "loop": false,
+   "source": "elevenlabs",
+   "licence": "ElevenLabs terms of service (generated audio; whether commercial use is allowed depends on the plan the sounds were made under)"
+  },
+  "gun-medium-1": {
+   "file": "gun-medium-1.m4a",
+   "duration": 1.99,
+   "bus": "sfx",
+   "loop": false,
+   "source": "elevenlabs",
+   "licence": "ElevenLabs terms of service (generated audio; whether commercial use is allowed depends on the plan the sounds were made under)"
+  },
+  "gun-medium-2": {
+   "file": "gun-medium-2.m4a",
+   "duration": 2.11,
+   "bus": "sfx",
+   "loop": false,
+   "source": "elevenlabs",
+   "licence": "ElevenLabs terms of service (generated audio; whether commercial use is allowed depends on the plan the sounds were made under)"
+  },
+  "gun-light-1": {
+   "file": "gun-light-1.m4a",
+   "duration": 1.2,
+   "bus": "sfx",
+   "loop": false,
+   "source": "elevenlabs",
+   "licence": "ElevenLabs terms of service (generated audio; whether commercial use is allowed depends on the plan the sounds were made under)"
+  },
+  "gun-light-2": {
+   "file": "gun-light-2.m4a",
+   "duration": 0.62,
+   "bus": "sfx",
+   "loop": false,
+   "source": "elevenlabs",
+   "licence": "ElevenLabs terms of service (generated audio; whether commercial use is allowed depends on the plan the sounds were made under)"
+  },
+  "gun-distant-1": {
+   "file": "gun-distant-1.m4a",
+   "duration": 4.99,
+   "bus": "sfx",
+   "loop": false,
+   "source": "elevenlabs",
+   "licence": "ElevenLabs terms of service (generated audio; whether commercial use is allowed depends on the plan the sounds were made under)"
+  },
+  "gun-distant-2": {
+   "file": "gun-distant-2.m4a",
+   "duration": 4.13,
+   "bus": "sfx",
+   "loop": false,
+   "source": "elevenlabs",
+   "licence": "ElevenLabs terms of service (generated audio; whether commercial use is allowed depends on the plan the sounds were made under)"
+  },
+  "shell-whistle-1": {
+   "file": "shell-whistle-1.m4a",
+   "duration": 2.27,
+   "bus": "sfx",
+   "loop": false,
+   "source": "elevenlabs",
+   "licence": "ElevenLabs terms of service (generated audio; whether commercial use is allowed depends on the plan the sounds were made under)"
+  },
+  "shell-whistle-2": {
+   "file": "shell-whistle-2.m4a",
+   "duration": 2.99,
+   "bus": "sfx",
+   "loop": false,
+   "source": "elevenlabs",
+   "licence": "ElevenLabs terms of service (generated audio; whether commercial use is allowed depends on the plan the sounds were made under)"
+  },
+  "hit-clang-1": {
+   "file": "hit-clang-1.m4a",
+   "duration": 1.34,
+   "bus": "sfx",
+   "loop": false,
+   "source": "elevenlabs",
+   "licence": "ElevenLabs terms of service (generated audio; whether commercial use is allowed depends on the plan the sounds were made under)"
+  },
+  "hit-clang-2": {
+   "file": "hit-clang-2.m4a",
+   "duration": 1.81,
+   "bus": "sfx",
+   "loop": false,
+   "source": "elevenlabs",
+   "licence": "ElevenLabs terms of service (generated audio; whether commercial use is allowed depends on the plan the sounds were made under)"
+  },
+  "hit-ricochet-1": {
+   "file": "hit-ricochet-1.m4a",
+   "duration": 0.39,
+   "bus": "sfx",
+   "loop": false,
+   "source": "elevenlabs",
+   "licence": "ElevenLabs terms of service (generated audio; whether commercial use is allowed depends on the plan the sounds were made under)"
+  },
+  "hit-ricochet-2": {
+   "file": "hit-ricochet-2.m4a",
+   "duration": 1.46,
+   "bus": "sfx",
+   "loop": false,
+   "source": "elevenlabs",
+   "licence": "ElevenLabs terms of service (generated audio; whether commercial use is allowed depends on the plan the sounds were made under)"
+  },
+  "hit-burst-1": {
+   "file": "hit-burst-1.m4a",
+   "duration": 2.99,
+   "bus": "sfx",
+   "loop": false,
+   "source": "elevenlabs",
+   "licence": "ElevenLabs terms of service (generated audio; whether commercial use is allowed depends on the plan the sounds were made under)"
+  },
+  "hit-burst-2": {
+   "file": "hit-burst-2.m4a",
+   "duration": 2.97,
+   "bus": "sfx",
+   "loop": false,
+   "source": "elevenlabs",
+   "licence": "ElevenLabs terms of service (generated audio; whether commercial use is allowed depends on the plan the sounds were made under)"
+  },
+  "explosion-magazine": {
+   "file": "explosion-magazine.m4a",
+   "duration": 4.59,
+   "bus": "sfx",
+   "loop": false,
+   "source": "elevenlabs",
+   "licence": "ElevenLabs terms of service (generated audio; whether commercial use is allowed depends on the plan the sounds were made under)"
+  },
+  "fire-loop": {
+   "file": "fire-loop.m4a",
+   "duration": 9.98,
+   "bus": "ambience",
+   "loop": true,
+   "source": "elevenlabs",
+   "licence": "ElevenLabs terms of service (generated audio; whether commercial use is allowed depends on the plan the sounds were made under)"
+  },
+  "flood": {
+   "file": "flood.m4a",
+   "duration": 5.99,
+   "bus": "sfx",
+   "loop": false,
+   "source": "elevenlabs",
+   "licence": "ElevenLabs terms of service (generated audio; whether commercial use is allowed depends on the plan the sounds were made under)"
+  },
+  "creak-1": {
+   "file": "creak-1.m4a",
+   "duration": 3.69,
+   "bus": "sfx",
+   "loop": false,
+   "source": "elevenlabs",
+   "licence": "ElevenLabs terms of service (generated audio; whether commercial use is allowed depends on the plan the sounds were made under)"
+  },
+  "creak-2": {
+   "file": "creak-2.m4a",
+   "duration": 3.66,
+   "bus": "sfx",
+   "loop": false,
+   "source": "elevenlabs",
+   "licence": "ElevenLabs terms of service (generated audio; whether commercial use is allowed depends on the plan the sounds were made under)"
+  },
+  "sinking": {
+   "file": "sinking.m4a",
+   "duration": 8.35,
+   "bus": "sfx",
+   "loop": false,
+   "source": "elevenlabs",
+   "licence": "ElevenLabs terms of service (generated audio; whether commercial use is allowed depends on the plan the sounds were made under)"
+  },
+  "engine-loop": {
+   "file": "engine-loop.m4a",
+   "duration": 9.98,
+   "bus": "ambience",
+   "loop": true,
+   "source": "elevenlabs",
+   "licence": "ElevenLabs terms of service (generated audio; whether commercial use is allowed depends on the plan the sounds were made under)"
+  },
+  "prop-loop": {
+   "file": "prop-loop.m4a",
+   "duration": 7.98,
+   "bus": "ambience",
+   "loop": true,
+   "source": "elevenlabs",
+   "licence": "ElevenLabs terms of service (generated audio; whether commercial use is allowed depends on the plan the sounds were made under)"
+  },
+  "sea-loop": {
+   "file": "sea-loop.m4a",
+   "duration": 11.98,
+   "bus": "ambience",
+   "loop": true,
+   "source": "elevenlabs",
+   "licence": "ElevenLabs terms of service (generated audio; whether commercial use is allowed depends on the plan the sounds were made under)"
+  },
+  "telegraph-bell": {
+   "file": "telegraph-bell.m4a",
+   "duration": 1.6,
+   "bus": "sfx",
+   "loop": false,
+   "source": "elevenlabs",
+   "licence": "ElevenLabs terms of service (generated audio; whether commercial use is allowed depends on the plan the sounds were made under)"
+  },
+  "klaxon": {
+   "file": "klaxon.m4a",
+   "duration": 2.99,
+   "bus": "sfx",
+   "loop": false,
+   "source": "elevenlabs",
+   "licence": "ElevenLabs terms of service (generated audio; whether commercial use is allowed depends on the plan the sounds were made under)"
+  },
+  "turret-motor": {
+   "file": "turret-motor.m4a",
+   "duration": 5.99,
+   "bus": "ambience",
+   "loop": true,
+   "source": "elevenlabs",
+   "licence": "ElevenLabs terms of service (generated audio; whether commercial use is allowed depends on the plan the sounds were made under)"
+  },
+  "breech-clank": {
+   "file": "breech-clank.m4a",
+   "duration": 1.18,
+   "bus": "sfx",
+   "loop": false,
+   "source": "elevenlabs",
+   "licence": "ElevenLabs terms of service (generated audio; whether commercial use is allowed depends on the plan the sounds were made under)"
+  },
+  "torpedo-launch": {
+   "file": "torpedo-launch.m4a",
+   "duration": 2.46,
+   "bus": "sfx",
+   "loop": false,
+   "source": "elevenlabs",
+   "licence": "ElevenLabs terms of service (generated audio; whether commercial use is allowed depends on the plan the sounds were made under)"
+  },
+  "torpedo-run": {
+   "file": "torpedo-run.m4a",
+   "duration": 5.99,
+   "bus": "ambience",
+   "loop": true,
+   "source": "elevenlabs",
+   "licence": "ElevenLabs terms of service (generated audio; whether commercial use is allowed depends on the plan the sounds were made under)"
+  },
+  "plane-loop": {
+   "file": "plane-loop.m4a",
+   "duration": 7.98,
+   "bus": "ambience",
+   "loop": true,
+   "source": "elevenlabs",
+   "licence": "ElevenLabs terms of service (generated audio; whether commercial use is allowed depends on the plan the sounds were made under)"
+  }
+ }
+}

@@ -7,6 +7,7 @@ import { BATTLESHIP_FLOATING, FloatingBody, fitWaterPlane } from '../sim/ships/b
 import { handlingFor, KNOT, ShipDynamics, type HandlingOverrides } from '../sim/ships/dynamics';
 import type { ShipFrame } from '../sim/ships/frame';
 import { WakeHistory, type WakeShip } from '../sim/ships/wake';
+import { decalsForHit, type HitMark } from '../render/ships/decals';
 import type { ShipShot } from './replay';
 
 const DEG = Math.PI / 180;
@@ -123,6 +124,11 @@ export class ShipActor implements WakeSource {
       // A deck mounting is a turret in the picture; a submerged tube has no part to turn.
       if (this.turretIds.has(tube.spec.id)) this.instance.rig.setTurret(tube.spec.id, tube.bearing, 0);
     }
+  }
+
+  /** A shell has struck her: the marks it leaves (scorch, a hole) are carried on her hull from now on. */
+  markHit(mark: HitMark, now: number): void {
+    for (const d of decalsForHit(mark, now)) this.instance.decals.add(d);
   }
 
   // ---- replay -------------------------------------------------------------------------------------

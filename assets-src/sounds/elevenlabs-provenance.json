@@ -1,0 +1,299 @@
+[
+  {
+    "id": "gun-heavy-2",
+    "text": "A huge naval gun turret firing, a sharp concussive crack and a heavy low boom, with the echo rolling away over the water",
+    "duration": 4,
+    "influence": 0.6,
+    "loop": false,
+    "model": "eleven_text_to_sound_v2",
+    "when": "2026-10-22T16:02:31.109Z"
+  },
+  {
+    "id": "gun-heavy-1",
+    "text": "A single massive 15-inch battleship gun firing, deafening muzzle blast followed by a rolling thunder echo across open sea, close recording",
+    "duration": 4,
+    "influence": 0.6,
+    "loop": false,
+    "model": "eleven_text_to_sound_v2",
+    "when": "2026-10-22T16:02:31.458Z"
+  },
+  {
+    "id": "gun-heavy-3",
+    "text": "Two enormous battleship guns firing together, a thunderous blast shaking the air, then a long rumbling echo",
+    "duration": 4,
+    "influence": 0.6,
+    "loop": false,
+    "model": "eleven_text_to_sound_v2",
+    "when": "2026-10-22T16:02:33.080Z"
+  },
+  {
+    "id": "gun-medium-1",
+    "text": "A 6-inch naval gun firing from a ship's casemate, a sharp loud crack with a short echo over the sea",
+    "duration": 2.5,
+    "influence": 0.6,
+    "loop": false,
+    "model": "eleven_text_to_sound_v2",
+    "when": "2026-10-22T16:02:33.387Z"
+  },
+  {
+    "id": "gun-medium-2",
+    "text": "A medium calibre warship gun firing, a hard bang and metallic ring, fading echo across the water",
+    "duration": 2.5,
+    "influence": 0.6,
+    "loop": false,
+    "model": "eleven_text_to_sound_v2",
+    "when": "2026-10-22T16:02:34.759Z"
+  },
+  {
+    "id": "gun-light-1",
+    "text": "A quick-firing 12-pounder naval gun shot, a sharp bang with a metallic breech clack",
+    "duration": 1.5,
+    "influence": 0.6,
+    "loop": false,
+    "model": "eleven_text_to_sound_v2",
+    "when": "2026-10-22T16:02:35.757Z"
+  },
+  {
+    "id": "gun-light-2",
+    "text": "A small naval deck gun firing twice rapidly, sharp cracks over the sea",
+    "duration": 1.5,
+    "influence": 0.6,
+    "loop": false,
+    "model": "eleven_text_to_sound_v2",
+    "when": "2026-10-22T16:02:37.212Z"
+  },
+  {
+    "id": "gun-distant-1",
+    "text": "A distant naval gun boom heard from many miles away across the sea, a low muffled rumble rolling in, nothing close",
+    "duration": 5,
+    "influence": 0.6,
+    "loop": false,
+    "model": "eleven_text_to_sound_v2",
+    "when": "2026-10-22T16:02:38.422Z"
+  },
+  {
+    "id": "shell-whistle-1",
+    "text": "A heavy artillery shell screaming and whistling overhead as it passes close, doppler shift, then fading away",
+    "duration": 3,
+    "influence": 0.6,
+    "loop": false,
+    "model": "eleven_text_to_sound_v2",
+    "when": "2026-10-22T16:02:40.403Z"
+  },
+  {
+    "id": "gun-distant-2",
+    "text": "Far-off battleship gunfire, a deep soft thud and a long low rumble of echo over open water",
+    "duration": 5,
+    "influence": 0.6,
+    "loop": false,
+    "model": "eleven_text_to_sound_v2",
+    "when": "2026-10-22T16:02:41.343Z"
+  },
+  {
+    "id": "shell-whistle-2",
+    "text": "A large incoming naval shell with a rising shriek, a rushing roar as it passes overhead and falls away",
+    "duration": 3,
+    "influence": 0.6,
+    "loop": false,
+    "model": "eleven_text_to_sound_v2",
+    "when": "2026-10-22T16:02:42.038Z"
+  },
+  {
+    "id": "hit-clang-1",
+    "text": "A heavy armour-piercing shell striking thick steel armour plate, a loud ringing metallic clang and shattering",
+    "duration": 2.5,
+    "influence": 0.6,
+    "loop": false,
+    "model": "eleven_text_to_sound_v2",
+    "when": "2026-10-22T16:02:43.215Z"
+  },
+  {
+    "id": "hit-clang-2",
+    "text": "A massive shell slamming into a steel ship's hull, a deep metallic crash and a ringing reverberation",
+    "duration": 2.5,
+    "influence": 0.6,
+    "loop": false,
+    "model": "eleven_text_to_sound_v2",
+    "when": "2026-10-22T16:02:43.881Z"
+  },
+  {
+    "id": "hit-ricochet-1",
+    "text": "A shell glancing off steel armour, a high whining ricochet ping",
+    "duration": 1.5,
+    "influence": 0.7,
+    "loop": false,
+    "model": "eleven_text_to_sound_v2",
+    "when": "2026-10-22T16:02:46.506Z"
+  },
+  {
+    "id": "hit-ricochet-2",
+    "text": "A shell ricocheting off a warship's armour with a screeching whine and spark",
+    "duration": 1.5,
+    "influence": 0.7,
+    "loop": false,
+    "model": "eleven_text_to_sound_v2",
+    "when": "2026-10-22T16:02:46.644Z"
+  },
+  {
+    "id": "hit-burst-1",
+    "text": "A shell exploding inside a steel warship, a deep muffled detonation with tearing and buckling metal",
+    "duration": 3,
+    "influence": 0.6,
+    "loop": false,
+    "model": "eleven_text_to_sound_v2",
+    "when": "2026-10-22T16:02:48.142Z"
+  },
+  {
+    "id": "hit-burst-2",
+    "text": "An explosion deep inside a ship's hull, a heavy boom, creaking metal and a rush of flames",
+    "duration": 3,
+    "influence": 0.6,
+    "loop": false,
+    "model": "eleven_text_to_sound_v2",
+    "when": "2026-10-22T16:02:48.359Z"
+  },
+  {
+    "id": "explosion-magazine",
+    "text": "A colossal battleship magazine explosion, a deafening blast and fireball roar, then debris raining down into the sea",
+    "duration": 6,
+    "influence": 0.6,
+    "loop": false,
+    "model": "eleven_text_to_sound_v2",
+    "when": "2026-10-22T16:02:50.784Z"
+  },
+  {
+    "id": "fire-loop",
+    "text": "Fire crackling and roaring aboard a steel ship with hissing steam, steady and continuous",
+    "duration": 10,
+    "influence": 0.5,
+    "loop": true,
+    "model": "eleven_text_to_sound_v2",
+    "when": "2026-10-22T16:02:52.827Z"
+  },
+  {
+    "id": "flood",
+    "text": "Water rushing and gushing into a flooded steel ship compartment, gurgling and splashing",
+    "duration": 6,
+    "influence": 0.5,
+    "loop": false,
+    "model": "eleven_text_to_sound_v2",
+    "when": "2026-10-22T16:02:53.164Z"
+  },
+  {
+    "id": "creak-2",
+    "text": "Heavy steel plates flexing and groaning inside a warship, a slow ominous metal creak",
+    "duration": 4,
+    "influence": 0.5,
+    "loop": false,
+    "model": "eleven_text_to_sound_v2",
+    "when": "2026-10-22T16:02:55.083Z"
+  },
+  {
+    "id": "creak-1",
+    "text": "A large steel ship's hull groaning and creaking under strain, deep metallic moans",
+    "duration": 4,
+    "influence": 0.5,
+    "loop": false,
+    "model": "eleven_text_to_sound_v2",
+    "when": "2026-10-22T16:02:55.261Z"
+  },
+  {
+    "id": "engine-loop",
+    "text": "The deep steady rumble of a battleship's steam turbine engines and machinery, a low constant drone, no music",
+    "duration": 10,
+    "influence": 0.5,
+    "loop": true,
+    "model": "eleven_text_to_sound_v2",
+    "when": "2026-10-22T16:02:58.520Z"
+  },
+  {
+    "id": "prop-loop",
+    "text": "Ship propellers churning water at the stern, a steady rushing whoosh of wake",
+    "duration": 8,
+    "influence": 0.5,
+    "loop": true,
+    "model": "eleven_text_to_sound_v2",
+    "when": "2026-10-22T16:03:01.848Z"
+  },
+  {
+    "id": "sea-loop",
+    "text": "Open ocean waves and wind, a steady sea ambience heard on the deck of a ship, no voices",
+    "duration": 12,
+    "influence": 0.5,
+    "loop": true,
+    "model": "eleven_text_to_sound_v2",
+    "when": "2026-10-22T16:03:06.230Z"
+  },
+  {
+    "id": "sinking",
+    "text": "A large steel warship sinking, groaning twisting metal, rushing water and bubbling, ending in quiet",
+    "duration": 9,
+    "influence": 0.5,
+    "loop": false,
+    "model": "eleven_text_to_sound_v2",
+    "when": "2026-10-22T16:03:06.808Z"
+  },
+  {
+    "id": "telegraph-bell",
+    "text": "A ship's engine room telegraph bell ringing, two clear brass dings",
+    "duration": 2,
+    "influence": 0.7,
+    "loop": false,
+    "model": "eleven_text_to_sound_v2",
+    "when": "2026-10-22T16:03:08.005Z"
+  },
+  {
+    "id": "klaxon",
+    "text": "A warship alarm klaxon sounding, a loud urgent repeating hoot",
+    "duration": 3,
+    "influence": 0.7,
+    "loop": false,
+    "model": "eleven_text_to_sound_v2",
+    "when": "2026-10-22T16:03:08.430Z"
+  },
+  {
+    "id": "breech-clank",
+    "text": "A heavy naval gun breech slamming shut with a hydraulic rammer and a loud metallic clank",
+    "duration": 2,
+    "influence": 0.6,
+    "loop": false,
+    "model": "eleven_text_to_sound_v2",
+    "when": "2026-10-22T16:03:10.384Z"
+  },
+  {
+    "id": "turret-motor",
+    "text": "A heavy gun turret training motor whining and gears grinding, a steady hydraulic hum",
+    "duration": 6,
+    "influence": 0.5,
+    "loop": true,
+    "model": "eleven_text_to_sound_v2",
+    "when": "2026-10-22T16:03:10.903Z"
+  },
+  {
+    "id": "torpedo-launch",
+    "text": "A torpedo launched from a ship, a sharp compressed air whoosh followed by a splash",
+    "duration": 2.5,
+    "influence": 0.6,
+    "loop": false,
+    "model": "eleven_text_to_sound_v2",
+    "when": "2026-10-22T16:03:12.286Z"
+  },
+  {
+    "id": "torpedo-run",
+    "text": "A torpedo running underwater, a steady whirring propeller buzz",
+    "duration": 6,
+    "influence": 0.5,
+    "loop": true,
+    "model": "eleven_text_to_sound_v2",
+    "when": "2026-10-22T16:03:14.900Z"
+  },
+  {
+    "id": "plane-loop",
+    "text": "A biplane radial engine droning steadily as it flies past, no wind noise",
+    "duration": 8,
+    "influence": 0.5,
+    "loop": true,
+    "model": "eleven_text_to_sound_v2",
+    "when": "2026-10-22T16:03:15.852Z"
+  }
+]

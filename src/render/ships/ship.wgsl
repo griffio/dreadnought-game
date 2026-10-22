@@ -47,7 +47,21 @@ struct Surf {
   rough: f32,
   metal: f32,
   ao: f32,
+  /** Light the surface gives out (a fresh hole, still hot), in the units of the muzzle glows. */
+  emit: vec3<f32>,
 };
+
+// The weathering atlas (see tools/process-textures.py): layers are data, not colours. Detail layers hold a value about one half;
+// masks hold nothing where the ship is clean.
+@group(1) @binding(3) var weather: texture_2d_array<f32>;
+@group(1) @binding(4) var decal_tex: texture_2d_array<f32>;
+@group(1) @binding(5) var weather_samp: sampler;
+const L_STEEL: i32 = 0;   // R plating detail, G fine scratches
+const L_WEAR: i32 = 1;    // R rust and bare metal where the paint has gone, G lighter chips, B the paint's mottling
+const L_STREAK: i32 = 2;  // R rust drips
+const L_GRIME: i32 = 3;   // R grime and soot
+const L_WOOD: i32 = 4;    // R planking grain, G caulking
+const L_RIVET: i32 = 5;   // R armour plating detail
 
 const M_HULL: u32 = 0u;
 const M_DECK: u32 = 1u;
@@ -59,6 +73,27 @@ const M_MAST: u32 = 6u;
 const M_WOOD: u32 = 7u;
 const M_BLACK: u32 = 8u;
 const M_BRASS: u32 = 9u;
+
+// A tiling layer sampled on the three planes of ship space, blended by the way the surface faces. `scale` is tiles per metre; dx and dy
+// are the screen derivatives of the position (worked out where every pixel runs, so that they are valid here).
+fn tri(layer: i32, p: vec3<f32>, n: vec3<f32>, scale: f32, dx: vec3<f32>, dy: vec3<f32>) -> vec4<f32> {
+  var w = pow(abs(n), vec3<f32>(5.0));
+  w = w * vec3<f32>(step(0.03, w.x / (w.x + w.y + w.z + 1e-5)), step(0.03, w.y / (w.x + w.y + w.z + 1e-5)), step(0.03, w.z / (w.x + w.y + w.z + 1e-5)));
+  var c = vec4<f32>(0.0);
+  if (w.x > 0.0) { c += w.x * textureSampleGrad(weather, weather_samp, p.zy * scale, layer, dx.zy * scale, dy.zy * scale); }
+  if (w.y > 0.0) { c += w.y * textureSampleGrad(weather, weather_samp, p.xz * scale, layer, dx.xz * scale, dy.xz * scale); }
+  if (w.z > 0.0) { c += w.z * textureSampleGrad(weather, weather_samp, p.xy * scale, layer, dx.xy * scale, dy.xy * scale); }
+  return c / max(w.x + w.y + w.z, 1e-4);
+}
+
+// One plane only: along the ship for her sides, across for her ends. `scale` is tiles per metre along and up.
+fn side_tex(layer: i32, p: vec3<f32>, n: vec3<f32>, scale: vec2<f32>, dx: vec3<f32>, dy: vec3<f32>) -> vec4<f32> {
+  let across = abs(n.x) > 0.6;
+  let h = select(p.x, p.z, across);
+  let hx = select(dx.x, dx.z, across);
+  let hy = select(dy.x, dy.z, across);
+  return textureSampleGrad(weather, weather_samp, vec2<f32>(h, p.y) * scale, layer, vec2<f32>(hx, dx.y) * scale, vec2<f32>(hy, dy.y) * scale);
+}
 
 // Staggered rectangular plating: seam darkening plus a little per-plate tone variation.
 // `along` picks which horizontal axis the plates run on (the one facing the surface normal's tangent).
@@ -74,16 +109,29 @@ fn plating(obj: vec3<f32>, n: vec3<f32>, plate: vec2<f32>) -> vec2<f32> {
   return vec2<f32>(seam, hash21(cell));
 }
 
-fn hull_surface(obj: vec3<f32>, n: vec3<f32>) -> Surf {
+fn hull_surface(obj: vec3<f32>, n: vec3<f32>, dx: vec3<f32>, dy: vec3<f32>) -> Surf {
   let pl = plating(obj, n, vec2<f32>(3.1, 1.55));
   var col = ship.hull_grey.rgb * (0.93 + 0.14 * pl.y);
   col *= 1.0 - 0.15 * pl.x;
 
-  // Rust streaks running down from the deck edge and scuppers.
-  let h = select(obj.x, obj.z, abs(n.x) > 0.6);
-  let streak = fbm(vec2<f32>(h * 1.6, obj.y * 0.14), 3);
-  let rust = smoothstep(0.58, 0.85, streak) * smoothstep(0.5, 4.5, obj.y) * 0.34;
-  col = mix(col, vec3<f32>(0.14, 0.075, 0.045), rust);
+  // Above the waterline: the plating's own detail, then the weathering, in proportion to how long she has been at sea.
+  let weathering = ship.clock.y;
+  let above = smoothstep(-0.9, -0.4, obj.y);
+  let steel = tri(L_STEEL, obj, n, 0.2, dx, dy);
+  col *= 1.0 + ((steel.r - 0.5) * 0.75 + (steel.g - 0.5) * 0.35) * above;
+  // Paint worn through to rust and bare metal, and lighter chips where it lifts.
+  let wear = tri(L_WEAR, obj, n, 0.16, dx, dy);
+  // Rust does not fall evenly: it gathers in patches, and more of it low down and under the deck edge.
+  let along = select(obj.x, obj.z, abs(n.x) > 0.6);
+  let blotch = smoothstep(0.32, 0.7, fbm(vec2<f32>(along * 0.1, obj.y * 0.2), 3));
+  let rust = clamp(wear.r * weathering * above * mix(0.18, 1.0, blotch) * (0.55 + 0.6 * (1.0 - smoothstep(0.5, 6.0, obj.y))), 0.0, 1.0);
+  col = mix(col, vec3<f32>(0.16, 0.075, 0.04) * (0.65 + 0.9 * wear.b), rust * 0.85);
+  col *= 1.0 + wear.g * weathering * above * 0.35;
+  // Rust drips from the deck edge and the scuppers, and grime and soot that gather low.
+  let drip = side_tex(L_STREAK, obj, n, vec2<f32>(0.34, 0.085), dx, dy).r;
+  col = mix(col, vec3<f32>(0.13, 0.07, 0.045), drip * weathering * 0.62 * smoothstep(0.5, 4.5, obj.y));
+  let grime = tri(L_GRIME, obj, n, 0.1, dx, dy).r;
+  col *= 1.0 - grime * weathering * above * (0.3 + 0.25 * (1.0 - smoothstep(0.0, 4.0, obj.y)));
 
   // Boot-topping band at the waterline, anti-fouling red below it.
   let boot = smoothstep(-1.15, -0.95, obj.y) * (1.0 - smoothstep(0.35, 0.55, obj.y));
@@ -93,13 +141,13 @@ fn hull_surface(obj: vec3<f32>, n: vec3<f32>) -> Surf {
 
   var s: Surf;
   s.albedo = col;
-  s.rough = 0.62;
+  s.rough = 0.62 + 0.3 * rust;
   s.metal = 0.0;
   s.ao = mix(0.5, 1.0, smoothstep(-0.2, 3.0, obj.y));
   return s;
 }
 
-fn deck_surface(obj: vec3<f32>) -> Surf {
+fn deck_surface(obj: vec3<f32>, dx: vec3<f32>, dy: vec3<f32>) -> Surf {
   if (ship.misc.y > 0.5) {
     // A fort's apron: poured concrete in slabs with expansion joints, stained and cracked a little.
     let cell = floor(obj.xz / vec2<f32>(6.5, 5.2));
@@ -126,7 +174,13 @@ fn deck_surface(obj: vec3<f32>) -> Surf {
   let tone = hash21(vec2<f32>(plank, floor(px)));
   var col = vec3<f32>(0.40, 0.29, 0.18) * (0.78 + 0.34 * tone);
   col = mix(col, vec3<f32>(0.46, 0.41, 0.33), 0.25); // sun-bleached
-  col *= 1.0 - 0.42 * max(seam, butt);
+  // The grain and the caulking come from the picture (planks run along the ship); the seams and butt joints above only lay them out.
+  let wood = textureSampleGrad(weather, weather_samp, obj.xz * 0.47, L_WOOD, dx.xz * 0.47, dy.xz * 0.47);
+  col *= 0.72 + 0.56 * wood.r;
+  col *= 1.0 - 0.4 * wood.g;
+  col *= 1.0 - 0.16 * seam - 0.3 * butt;
+  let grime = textureSampleGrad(weather, weather_samp, obj.xz * 0.11, L_GRIME, dx.xz * 0.11, dy.xz * 0.11).r;
+  col *= 1.0 - grime * ship.clock.y * 0.35;
   var s: Surf;
   s.albedo = col;
   s.rough = 0.8;
@@ -135,17 +189,27 @@ fn deck_surface(obj: vec3<f32>) -> Surf {
   return s;
 }
 
-fn steel_surface(obj: vec3<f32>, n: vec3<f32>, base: vec3<f32>, plate: vec2<f32>) -> Surf {
+fn steel_surface(obj: vec3<f32>, n: vec3<f32>, base: vec3<f32>, plate: vec2<f32>, layer: i32, dx: vec3<f32>, dy: vec3<f32>) -> Surf {
   let pl = plating(obj, n, plate);
+  let weathering = ship.clock.y;
+  let detail = tri(layer, obj, n, 0.28, dx, dy);
+  let wear = tri(L_WEAR, obj, n, 0.2, dx, dy);
+  let grime = tri(L_GRIME, obj, n, 0.13, dx, dy).r;
   var s: Surf;
-  s.albedo = base * (0.94 + 0.12 * pl.y) * (1.0 - 0.16 * pl.x);
-  s.rough = 0.6;
+  var col = base * (0.94 + 0.12 * pl.y) * (1.0 - 0.16 * pl.x);
+  col *= 1.0 + (detail.r - 0.5) * 0.7;
+  let blotch = smoothstep(0.32, 0.7, fbm(obj.xz * 0.12 + obj.y * 0.17, 3));
+  let rust = clamp(wear.r * weathering * 0.55 * mix(0.18, 1.0, blotch), 0.0, 1.0);
+  col = mix(col, vec3<f32>(0.15, 0.072, 0.04) * (0.65 + 0.9 * wear.b), rust * 0.8);
+  col *= 1.0 - grime * weathering * 0.28;
+  s.albedo = col;
+  s.rough = 0.6 + 0.25 * rust;
   s.metal = 0.0;
   s.ao = 1.0;
   return s;
 }
 
-fn surface(ids: u32, aux: u32, obj: vec3<f32>, n: vec3<f32>) -> Surf {
+fn surface(ids: u32, aux: u32, obj: vec3<f32>, n: vec3<f32>, dx: vec3<f32>, dy: vec3<f32>) -> Surf {
   let mid = (ids >> 8u) & 0xffu;
   var s: Surf;
   s.albedo = vec3<f32>(0.3);
@@ -154,16 +218,16 @@ fn surface(ids: u32, aux: u32, obj: vec3<f32>, n: vec3<f32>) -> Surf {
   s.ao = 1.0;
   switch (mid) {
     case M_HULL: {
-      s = hull_surface(obj, n);
+      s = hull_surface(obj, n, dx, dy);
     }
     case M_DECK: {
-      s = deck_surface(obj);
+      s = deck_surface(obj, dx, dy);
     }
     case M_SUPER: {
-      s = steel_surface(obj, n, ship.super_grey.rgb, vec2<f32>(2.4, 1.2));
+      s = steel_surface(obj, n, ship.super_grey.rgb, vec2<f32>(2.4, 1.2), L_STEEL, dx, dy);
     }
     case M_TURRET: {
-      s = steel_surface(obj, n, ship.hull_grey.rgb * 0.9, vec2<f32>(1.9, 1.0));
+      s = steel_surface(obj, n, ship.hull_grey.rgb * 0.9, vec2<f32>(1.9, 1.0), L_RIVET, dx, dy);
     }
     case M_FUNNEL: {
       let top = f32(aux) * 0.1;
@@ -202,6 +266,71 @@ fn surface(ids: u32, aux: u32, obj: vec3<f32>, n: vec3<f32>) -> Surf {
   return s;
 }
 
+// The marks of the hits she has taken, projected onto the static hull in ship space. A scorch darkens, a hole is a dark opening with a
+// charred, rusted rim, and a fresh one is still hot: it glows, and cools over some seconds. A mark made later than the simulation clock
+// is not shown, so that a replay of an earlier moment sees the ship as she was.
+fn with_decals(base: Surf, obj: vec3<f32>, n: vec3<f32>, dx: vec3<f32>, dy: vec3<f32>) -> Surf {
+  var s = base;
+  let count = i32(ship.clock.z);
+  if (count == 0) {
+    return s;
+  }
+  let now = ship.clock.x;
+  let footprint = max(length(dx), length(dy));
+  var soot = 0.0;
+  var hole = 0.0;
+  var rim = 0.0;
+  var edge = 0.5;
+  var heat = 0.0;
+  for (var i = 0; i < count; i++) {
+    let a = ship.decals[i * 3];
+    let b = ship.decals[i * 3 + 1];
+    let c = ship.decals[i * 3 + 2];
+    let age = now - c.x;
+    let d = obj - a.xyz;
+    let r = a.w;
+    if (age < 0.0 || dot(d, d) > r * r * 2.0) {
+      continue;
+    }
+    let nd = b.xyz;
+    // On the surface the mark was made on, not through the ship onto her far side or round a corner.
+    if (dot(n, nd) < 0.4 || abs(dot(d, nd)) > r * 0.7) {
+      continue;
+    }
+    let up = select(vec3<f32>(0.0, 1.0, 0.0), vec3<f32>(1.0, 0.0, 0.0), abs(nd.y) > 0.9);
+    let t = normalize(cross(up, nd));
+    let bi = cross(nd, t);
+    let ang = c.y * 6.2831853;
+    let u0 = dot(d, t) / r;
+    let v0 = dot(d, bi) / r;
+    let uv = vec2<f32>(u0 * cos(ang) - v0 * sin(ang), u0 * sin(ang) + v0 * cos(ang)) * 0.5 + 0.5;
+    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
+      continue;
+    }
+    let lod = clamp(log2(max(footprint / (2.0 * r) * 256.0, 1.0)), 0.0, 8.0);
+    let fade = smoothstep(0.0, 0.12, age);
+    let kind = i32(b.w + 0.5);
+    if (kind == 2) {
+      let h = textureSampleLevel(decal_tex, weather_samp, uv, 2, lod);
+      hole = max(hole, h.r * fade);
+      rim = max(rim, h.g * fade);
+      edge = mix(edge, h.b, h.g * fade);
+      heat = max(heat, fade * exp(-age / 16.0));
+    } else {
+      let m = textureSampleLevel(decal_tex, weather_samp, uv, select(0, 1, kind == 1), lod).r;
+      soot = max(soot, m * fade * select(0.8, 0.6, kind == 1));
+    }
+  }
+  s.albedo *= 1.0 - 0.88 * soot;
+  s.rough = mix(s.rough, 0.95, soot * 0.6);
+  s.albedo = mix(s.albedo, vec3<f32>(0.05, 0.032, 0.022) * (0.5 + edge), rim * 0.9);
+  s.albedo = mix(s.albedo, vec3<f32>(0.004), hole);
+  s.rough = mix(s.rough, 1.0, max(rim, hole));
+  s.ao = mix(s.ao, 0.12, hole);
+  s.emit = vec3<f32>(1.0, 0.34, 0.08) * (rim * 0.9 + hole * 0.06) * heat * 1.25;
+  return s;
+}
+
 fn ggx_specular(n: vec3<f32>, v: vec3<f32>, l: vec3<f32>, rough: f32, f0: vec3<f32>) -> vec3<f32> {
   let h = normalize(l + v);
   let nl = max(dot(n, l), 0.0);
@@ -221,6 +350,9 @@ fn ggx_specular(n: vec3<f32>, v: vec3<f32>, l: vec3<f32>, rough: f32, f0: vec3<f
 
 @fragment
 fn fs(in: VOut) -> @location(0) vec4<f32> {
+  // The position's screen derivatives, taken before anything can leave the pixel early, for the texture lookups below.
+  let dpx = dpdx(in.obj);
+  let dpy = dpdy(in.obj);
   // The director's sight sits among the legs of the mast and sees out of it: nothing of the ship that close to the lens is drawn.
   if (ship.misc.z > 0.0 && length(in.rel) < ship.misc.z) {
     discard;
@@ -230,7 +362,11 @@ fn fs(in: VOut) -> @location(0) vec4<f32> {
   if (dot(n, v) < 0.0) {
     n = -n; // thin sheets (decks, plates) are lit from both sides
   }
-  var s = surface(in.ids, in.aux, in.obj, in.nrm_obj);
+  var s = surface(in.ids, in.aux, in.obj, in.nrm_obj, dpx, dpy);
+  // Hits leave their marks on the static hull (node 0), not on a turret, which turns under them.
+  if ((in.ids & 0xffu) == 0u) {
+    s = with_decals(s, in.obj, normalize(in.nrm_obj), dpx, dpy);
+  }
 
   // Wet lower hull: darker and glossier where spray and waves reach.
   let mid = (in.ids >> 8u) & 0xffu;
@@ -261,6 +397,7 @@ fn fs(in: VOut) -> @location(0) vec4<f32> {
   let gloss = (1.0 - s.rough) * (1.0 - s.rough);
   col += env * (f0 + (vec3<f32>(1.0) - f0) * pow(1.0 - nv, 5.0)) * gloss * s.ao;
 
+  col += s.emit / scene.sun_irr.w;
   col = apply_haze(col, in.rel);
   return vec4<f32>(col, 1.0);
 }

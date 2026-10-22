@@ -43,6 +43,24 @@ export interface ShipEntry {
 const HOME_FLEET: Paint = { hull: [0.125, 0.14, 0.158], superstructure: [0.19, 0.205, 0.222] };
 const GERMAN_GREY: Paint = { hull: [0.17, 0.18, 0.192], superstructure: [0.23, 0.24, 0.252] };
 
+/** How weathered each ship is, 0 as new to 1 long at sea: the 1907 Dreadnought is worn, the 1941 ships are fresh from the dockyard. */
+const WEATHERING: Record<ShipId, number> = {
+  dreadnought: 0.7,
+  'queen-elizabeth': 0.55,
+  rodney: 0.45,
+  'king-george-v': 0.32,
+  hessen: 0.75,
+  kaiser: 0.5,
+  bismarck: 0.3,
+  'bismarck-wounded': 0.5,
+  destroyer: 0.6,
+};
+
+/** The paint a ship is drawn with: her colours, if she has her own, and how weathered she is. */
+export function paintOf(entry: ShipEntry): Partial<ShipPaint> {
+  return { ...entry.paint, weathering: WEATHERING[entry.id] };
+}
+
 export const ROSTER: Record<ShipId, ShipEntry> = {
   dreadnought: {
     id: 'dreadnought',

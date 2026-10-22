@@ -1,0 +1,335 @@
+[
+  {
+    "file": "raw/steel-1.jpg",
+    "model": "@cf/black-forest-labs/flux-2-klein-4b",
+    "prompt": "seamless tileable texture of weathered painted grey steel hull plating, subtle panel lines, faint rows of rivets and light streaking, flat orthographic view, even diffuse lighting, no perspective, no cast shadows, no text, no people",
+    "width": 1024,
+    "height": 1024,
+    "seed": 7000,
+    "when": "2026-10-22T15:10:58.476Z"
+  },
+  {
+    "file": "raw/steel-2.jpg",
+    "model": "@cf/black-forest-labs/flux-2-klein-4b",
+    "prompt": "seamless tileable texture of weathered painted grey steel hull plating, subtle panel lines, faint rows of rivets and light streaking, flat orthographic view, even diffuse lighting, no perspective, no cast shadows, no text, no people",
+    "width": 1024,
+    "height": 1024,
+    "seed": 7001,
+    "when": "2026-10-22T15:11:05.104Z"
+  },
+  {
+    "file": "raw/steel-3.jpg",
+    "model": "@cf/black-forest-labs/flux-2-klein-4b",
+    "prompt": "seamless tileable texture of weathered painted grey steel hull plating, subtle panel lines, faint rows of rivets and light streaking, flat orthographic view, even diffuse lighting, no perspective, no cast shadows, no text, no people",
+    "width": 1024,
+    "height": 1024,
+    "seed": 7002,
+    "when": "2026-10-22T15:11:08.668Z"
+  },
+  {
+    "file": "raw/steel-4.jpg",
+    "model": "@cf/black-forest-labs/flux-2-klein-4b",
+    "prompt": "seamless tileable texture of weathered painted grey steel hull plating, subtle panel lines, faint rows of rivets and light streaking, flat orthographic view, even diffuse lighting, no perspective, no cast shadows, no text, no people",
+    "width": 1024,
+    "height": 1024,
+    "seed": 7003,
+    "when": "2026-10-22T15:11:10.190Z"
+  },
+  {
+    "file": "raw/wear-1.jpg",
+    "model": "@cf/black-forest-labs/flux-2-klein-4b",
+    "prompt": "seamless tileable texture of naval grey paint chipped and worn on steel, patches of red-brown rust and bare metal spread evenly across the whole image, flat orthographic view, even diffuse lighting, no perspective, no cast shadows, no text, no people",
+    "width": 1024,
+    "height": 1024,
+    "seed": 7100,
+    "when": "2026-10-22T15:11:19.870Z"
+  },
+  {
+    "file": "raw/wear-2.jpg",
+    "model": "@cf/black-forest-labs/flux-2-klein-4b",
+    "prompt": "seamless tileable texture of naval grey paint chipped and worn on steel, patches of red-brown rust and bare metal spread evenly across the whole image, flat orthographic view, even diffuse lighting, no perspective, no cast shadows, no text, no people",
+    "width": 1024,
+    "height": 1024,
+    "seed": 7101,
+    "when": "2026-10-22T15:11:25.786Z"
+  },
+  {
+    "file": "raw/wear-3.jpg",
+    "model": "@cf/black-forest-labs/flux-2-klein-4b",
+    "prompt": "seamless tileable texture of naval grey paint chipped and worn on steel, patches of red-brown rust and bare metal spread evenly across the whole image, flat orthographic view, even diffuse lighting, no perspective, no cast shadows, no text, no people",
+    "width": 1024,
+    "height": 1024,
+    "seed": 7102,
+    "when": "2026-10-22T15:11:27.545Z"
+  },
+  {
+    "file": "raw/streaks-1.jpg",
+    "model": "@cf/black-forest-labs/flux-2-klein-4b",
+    "prompt": "seamless tileable grayscale mask of thin vertical rust drip streaks running down a steel wall, bright white streaks on a pure black background, flat orthographic view, even diffuse lighting, no perspective, no cast shadows, no text, no people",
+    "width": 1024,
+    "height": 1024,
+    "seed": 7200,
+    "when": "2026-10-22T15:11:37.813Z"
+  },
+  {
+    "file": "raw/streaks-2.jpg",
+    "model": "@cf/black-forest-labs/flux-2-klein-4b",
+    "prompt": "seamless tileable grayscale mask of thin vertical rust drip streaks running down a steel wall, bright white streaks on a pure black background, flat orthographic view, even diffuse lighting, no perspective, no cast shadows, no text, no people",
+    "width": 1024,
+    "height": 1024,
+    "seed": 7201,
+    "when": "2026-10-22T15:11:43.088Z"
+  },
+  {
+    "file": "raw/wear-4.jpg",
+    "model": "@cf/black-forest-labs/flux-2-klein-4b",
+    "prompt": "seamless tileable texture of naval grey paint chipped and worn on steel, patches of red-brown rust and bare metal spread evenly across the whole image, flat orthographic view, even diffuse lighting, no perspective, no cast shadows, no text, no people",
+    "width": 1024,
+    "height": 1024,
+    "seed": 7103,
+    "when": "2026-10-22T15:11:53.185Z"
+  },
+  {
+    "file": "raw/streaks-4.jpg",
+    "model": "@cf/black-forest-labs/flux-2-klein-4b",
+    "prompt": "seamless tileable grayscale mask of thin vertical rust drip streaks running down a steel wall, bright white streaks on a pure black background, flat orthographic view, even diffuse lighting, no perspective, no cast shadows, no text, no people",
+    "width": 1024,
+    "height": 1024,
+    "seed": 7203,
+    "when": "2026-10-22T15:11:54.226Z"
+  },
+  {
+    "file": "raw/streaks-3.jpg",
+    "model": "@cf/black-forest-labs/flux-2-klein-4b",
+    "prompt": "seamless tileable grayscale mask of thin vertical rust drip streaks running down a steel wall, bright white streaks on a pure black background, flat orthographic view, even diffuse lighting, no perspective, no cast shadows, no text, no people",
+    "width": 1024,
+    "height": 1024,
+    "seed": 7202,
+    "when": "2026-10-22T15:11:57.092Z"
+  },
+  {
+    "file": "raw/grime-2.jpg",
+    "model": "@cf/black-forest-labs/flux-2-klein-4b",
+    "prompt": "seamless tileable grayscale mask of dirty grime, soot and salt smudges, bright white marks on a pure black background, flat orthographic view, even diffuse lighting, no perspective, no cast shadows, no text, no people",
+    "width": 1024,
+    "height": 1024,
+    "seed": 7301,
+    "when": "2026-10-22T15:12:06.153Z"
+  },
+  {
+    "file": "raw/grime-1.jpg",
+    "model": "@cf/black-forest-labs/flux-2-klein-4b",
+    "prompt": "seamless tileable grayscale mask of dirty grime, soot and salt smudges, bright white marks on a pure black background, flat orthographic view, even diffuse lighting, no perspective, no cast shadows, no text, no people",
+    "width": 1024,
+    "height": 1024,
+    "seed": 7300,
+    "when": "2026-10-22T15:12:07.761Z"
+  },
+  {
+    "file": "raw/grime-3.jpg",
+    "model": "@cf/black-forest-labs/flux-2-klein-4b",
+    "prompt": "seamless tileable grayscale mask of dirty grime, soot and salt smudges, bright white marks on a pure black background, flat orthographic view, even diffuse lighting, no perspective, no cast shadows, no text, no people",
+    "width": 1024,
+    "height": 1024,
+    "seed": 7302,
+    "when": "2026-10-22T15:12:09.835Z"
+  },
+  {
+    "file": "raw/wood-1.jpg",
+    "model": "@cf/black-forest-labs/flux-2-klein-4b",
+    "prompt": "seamless tileable texture of long weathered teak ship deck planks running horizontally with thin dark caulked seams, sun bleached grain, flat orthographic view, even diffuse lighting, no perspective, no cast shadows, no text, no people",
+    "width": 1024,
+    "height": 1024,
+    "seed": 7400,
+    "when": "2026-10-22T15:12:23.666Z"
+  },
+  {
+    "file": "raw/wood-2.jpg",
+    "model": "@cf/black-forest-labs/flux-2-klein-4b",
+    "prompt": "seamless tileable texture of long weathered teak ship deck planks running horizontally with thin dark caulked seams, sun bleached grain, flat orthographic view, even diffuse lighting, no perspective, no cast shadows, no text, no people",
+    "width": 1024,
+    "height": 1024,
+    "seed": 7401,
+    "when": "2026-10-22T15:12:24.476Z"
+  },
+  {
+    "file": "raw/grime-4.jpg",
+    "model": "@cf/black-forest-labs/flux-2-klein-4b",
+    "prompt": "seamless tileable grayscale mask of dirty grime, soot and salt smudges, bright white marks on a pure black background, flat orthographic view, even diffuse lighting, no perspective, no cast shadows, no text, no people",
+    "width": 1024,
+    "height": 1024,
+    "seed": 7303,
+    "when": "2026-10-22T15:12:28.085Z"
+  },
+  {
+    "file": "raw/wood-3.jpg",
+    "model": "@cf/black-forest-labs/flux-2-klein-4b",
+    "prompt": "seamless tileable texture of long weathered teak ship deck planks running horizontally with thin dark caulked seams, sun bleached grain, flat orthographic view, even diffuse lighting, no perspective, no cast shadows, no text, no people",
+    "width": 1024,
+    "height": 1024,
+    "seed": 7402,
+    "when": "2026-10-22T15:12:34.526Z"
+  },
+  {
+    "file": "raw/wood-4.jpg",
+    "model": "@cf/black-forest-labs/flux-2-klein-4b",
+    "prompt": "seamless tileable texture of long weathered teak ship deck planks running horizontally with thin dark caulked seams, sun bleached grain, flat orthographic view, even diffuse lighting, no perspective, no cast shadows, no text, no people",
+    "width": 1024,
+    "height": 1024,
+    "seed": 7403,
+    "when": "2026-10-22T15:12:41.698Z"
+  },
+  {
+    "file": "raw/rivets-1.jpg",
+    "model": "@cf/black-forest-labs/flux-2-klein-4b",
+    "prompt": "seamless tileable texture of riveted steel armour plates with bolted seams, painted dark grey, flat orthographic view, even diffuse lighting, no perspective, no cast shadows, no text, no people",
+    "width": 1024,
+    "height": 1024,
+    "seed": 7500,
+    "when": "2026-10-22T15:12:41.722Z"
+  },
+  {
+    "file": "raw/rivets-2.jpg",
+    "model": "@cf/black-forest-labs/flux-2-klein-4b",
+    "prompt": "seamless tileable texture of riveted steel armour plates with bolted seams, painted dark grey, flat orthographic view, even diffuse lighting, no perspective, no cast shadows, no text, no people",
+    "width": 1024,
+    "height": 1024,
+    "seed": 7501,
+    "when": "2026-10-22T15:12:54.051Z"
+  },
+  {
+    "file": "raw/rivets-3.jpg",
+    "model": "@cf/black-forest-labs/flux-2-klein-4b",
+    "prompt": "seamless tileable texture of riveted steel armour plates with bolted seams, painted dark grey, flat orthographic view, even diffuse lighting, no perspective, no cast shadows, no text, no people",
+    "width": 1024,
+    "height": 1024,
+    "seed": 7502,
+    "when": "2026-10-22T15:12:56.853Z"
+  },
+  {
+    "file": "raw/scorch-1.jpg",
+    "model": "@cf/black-forest-labs/flux-2-klein-4b",
+    "prompt": "a soft irregular burn mark of soot spreading outward from a centre, organic and smoky with feathered edges, black soot on a pure white background, centred, flat orthographic view, even diffuse lighting, no perspective, no cast shadows, no text, no people",
+    "width": 1024,
+    "height": 1024,
+    "seed": 7600,
+    "when": "2026-10-22T15:13:02.285Z"
+  },
+  {
+    "file": "raw/scorch-2.jpg",
+    "model": "@cf/black-forest-labs/flux-2-klein-4b",
+    "prompt": "a soft irregular burn mark of soot spreading outward from a centre, organic and smoky with feathered edges, black soot on a pure white background, centred, flat orthographic view, even diffuse lighting, no perspective, no cast shadows, no text, no people",
+    "width": 1024,
+    "height": 1024,
+    "seed": 7601,
+    "when": "2026-10-22T15:13:08.201Z"
+  },
+  {
+    "file": "raw/scorch-4.jpg",
+    "model": "@cf/black-forest-labs/flux-2-klein-4b",
+    "prompt": "a soft irregular burn mark of soot spreading outward from a centre, organic and smoky with feathered edges, black soot on a pure white background, centred, flat orthographic view, even diffuse lighting, no perspective, no cast shadows, no text, no people",
+    "width": 1024,
+    "height": 1024,
+    "seed": 7603,
+    "when": "2026-10-22T15:13:13.243Z"
+  },
+  {
+    "file": "raw/scorch-3.jpg",
+    "model": "@cf/black-forest-labs/flux-2-klein-4b",
+    "prompt": "a soft irregular burn mark of soot spreading outward from a centre, organic and smoky with feathered edges, black soot on a pure white background, centred, flat orthographic view, even diffuse lighting, no perspective, no cast shadows, no text, no people",
+    "width": 1024,
+    "height": 1024,
+    "seed": 7602,
+    "when": "2026-10-22T15:13:17.431Z"
+  },
+  {
+    "file": "raw/scorch-5.jpg",
+    "model": "@cf/black-forest-labs/flux-2-klein-4b",
+    "prompt": "a soft irregular burn mark of soot spreading outward from a centre, organic and smoky with feathered edges, black soot on a pure white background, centred, flat orthographic view, even diffuse lighting, no perspective, no cast shadows, no text, no people",
+    "width": 1024,
+    "height": 1024,
+    "seed": 7604,
+    "when": "2026-10-22T15:13:24.476Z"
+  },
+  {
+    "file": "raw/hole-1.jpg",
+    "model": "@cf/black-forest-labs/flux-2-klein-4b",
+    "prompt": "extreme close-up of a single ragged hole blown through grey steel plating by a shell, torn metal petals bent outward, charred scorching around the edge, the hole is pure black, centred and filling the frame, flat orthographic view, even diffuse lighting, no perspective, no cast shadows, no text, no people",
+    "width": 1024,
+    "height": 1024,
+    "seed": 7700,
+    "when": "2026-10-22T15:13:28.347Z"
+  },
+  {
+    "file": "raw/hole-2.jpg",
+    "model": "@cf/black-forest-labs/flux-2-klein-4b",
+    "prompt": "extreme close-up of a single ragged hole blown through grey steel plating by a shell, torn metal petals bent outward, charred scorching around the edge, the hole is pure black, centred and filling the frame, flat orthographic view, even diffuse lighting, no perspective, no cast shadows, no text, no people",
+    "width": 1024,
+    "height": 1024,
+    "seed": 7701,
+    "when": "2026-10-22T15:13:29.616Z"
+  },
+  {
+    "file": "raw/hole-3.jpg",
+    "model": "@cf/black-forest-labs/flux-2-klein-4b",
+    "prompt": "extreme close-up of a single ragged hole blown through grey steel plating by a shell, torn metal petals bent outward, charred scorching around the edge, the hole is pure black, centred and filling the frame, flat orthographic view, even diffuse lighting, no perspective, no cast shadows, no text, no people",
+    "width": 1024,
+    "height": 1024,
+    "seed": 7702,
+    "when": "2026-10-22T15:13:38.679Z"
+  },
+  {
+    "file": "raw/hole-5.jpg",
+    "model": "@cf/black-forest-labs/flux-2-klein-4b",
+    "prompt": "extreme close-up of a single ragged hole blown through grey steel plating by a shell, torn metal petals bent outward, charred scorching around the edge, the hole is pure black, centred and filling the frame, flat orthographic view, even diffuse lighting, no perspective, no cast shadows, no text, no people",
+    "width": 1024,
+    "height": 1024,
+    "seed": 7704,
+    "when": "2026-10-22T15:13:42.086Z"
+  },
+  {
+    "file": "raw/hole-4.jpg",
+    "model": "@cf/black-forest-labs/flux-2-klein-4b",
+    "prompt": "extreme close-up of a single ragged hole blown through grey steel plating by a shell, torn metal petals bent outward, charred scorching around the edge, the hole is pure black, centred and filling the frame, flat orthographic view, even diffuse lighting, no perspective, no cast shadows, no text, no people",
+    "width": 1024,
+    "height": 1024,
+    "seed": 7703,
+    "when": "2026-10-22T15:13:45.793Z"
+  },
+  {
+    "file": "raw/hole-6.jpg",
+    "model": "@cf/black-forest-labs/flux-2-klein-4b",
+    "prompt": "extreme close-up of a single ragged hole blown through grey steel plating by a shell, torn metal petals bent outward, charred scorching around the edge, the hole is pure black, centred and filling the frame, flat orthographic view, even diffuse lighting, no perspective, no cast shadows, no text, no people",
+    "width": 1024,
+    "height": 1024,
+    "seed": 7705,
+    "when": "2026-10-22T15:13:52.808Z"
+  },
+  {
+    "file": "raw/pit-2.jpg",
+    "model": "@cf/black-forest-labs/flux-2-klein-4b",
+    "prompt": "a scatter of small shrapnel pits and scratches on grey steel, a few dark spots radiating outward from a centre, black marks on a pure white background, centred, flat orthographic view, even diffuse lighting, no perspective, no cast shadows, no text, no people",
+    "width": 1024,
+    "height": 1024,
+    "seed": 7801,
+    "when": "2026-10-22T15:13:58.604Z"
+  },
+  {
+    "file": "raw/pit-3.jpg",
+    "model": "@cf/black-forest-labs/flux-2-klein-4b",
+    "prompt": "a scatter of small shrapnel pits and scratches on grey steel, a few dark spots radiating outward from a centre, black marks on a pure white background, centred, flat orthographic view, even diffuse lighting, no perspective, no cast shadows, no text, no people",
+    "width": 1024,
+    "height": 1024,
+    "seed": 7802,
+    "when": "2026-10-22T15:14:07.764Z"
+  },
+  {
+    "file": "raw/pit-1.jpg",
+    "model": "@cf/black-forest-labs/flux-2-klein-4b",
+    "prompt": "a scatter of small shrapnel pits and scratches on grey steel, a few dark spots radiating outward from a centre, black marks on a pure white background, centred, flat orthographic view, even diffuse lighting, no perspective, no cast shadows, no text, no people",
+    "width": 1024,
+    "height": 1024,
+    "seed": 7800,
+    "when": "2026-10-22T15:14:24.379Z"
+  }
+]

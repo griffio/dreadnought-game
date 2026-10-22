@@ -9,3 +9,13 @@ playwright-report
 .env
 .env.*
 !.env.example
+
+# Temporary review page for the asset smoke test; never ship it.
+public/smoke/
+
+# Asset tool working files: unchosen candidates, contact sheets and the smoke-test outputs (the chosen pictures, the log of how every
+# one was made and the finished atlases are kept).
+assets-src/textures/candidates/
+assets-src/textures/sheets/
+assets-src/smoke/
+public/sfx-review/

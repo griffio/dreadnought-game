@@ -5,7 +5,7 @@ import { FreeCamera } from './app/free-camera';
 import { PerfSurvey } from './app/perf-survey';
 import { Campaign, type Recorded } from './campaign/campaign';
 import { missionById, playtestById, practiceById, type MissionDef } from './campaign/missions';
-import { isShipId, shipById, type ShipId } from './data/ships/roster';
+import { isShipId, paintOf, shipById, type ShipId } from './data/ships/roster';
 import { buildShip } from './render/ships/forge/build-ship';
 import type { ShipInstance } from './render/ships/ship-renderer';
 import { narrowsTerrain, NARROWS_START } from './data/missions/narrows';
@@ -27,6 +27,9 @@ import { RenderScaleController } from './render/render-scale';
 import { DEFAULT_SEA, SeaRenderer, type SeaParams } from './render/sea-renderer';
 import { paceById, type PaceId } from './sim/pace';
 import { ReplayPlayer, ReplayRecorder, type ReplayTarget } from './app/replay';
+import { AudioDirector } from './audio/director';
+import { AudioEngine } from './audio/engine';
+import { tapEffects } from './audio/tap';
 import { ReplayCamera, ShellCamera, type ReplayCameraMode } from './app/shell-camera';
 import { ReplayHud } from './ui/replay-hud';
 import type { WakeSample } from './sim/ships/wake';
@@ -81,6 +84,8 @@ declare global {
     __sea?: SeaRenderer;
     __player?: PlayerShip;
     __game?: Game;
+    __audio?: AudioEngine;
+    __director?: () => AudioDirector | null;
     __sight?: SightCamera;
     __camera?: Camera;
     __campaign?: Campaign;
@@ -227,13 +232,49 @@ async function boot(): Promise<void> {
     if (q.get('designate') === '1' && game.targets[0]) game.gunnery.designate(game.targets[0]);
     if (q.get('autospot') === '1') game.gunnery.autoSpot = true;
     if (q.get('tracers') === '0') sea.fx.tracers = false;
+    // ?weather=0..1 sets how weathered her paint is (for tuning and screenshots).
+    if (q.has('weather')) player.instance.paint = { ...player.instance.paint, weathering: Math.min(Math.max(num('weather', 0.55), 0), 1) };
+  }
+
+  // ---- sound ------------------------------------------------------------------------------------
+  // Every spectacle the game draws is heard where it happened, late by the speed of sound; the state of the ship and the fight sets
+  // the beds underneath. Browsers keep audio shut until the page is touched, so the engine starts at the first tap or key.
+  const audio = new AudioEngine();
+  let director: AudioDirector | null = null;
+  /** True while a replay rebuilds the smoke of the moments before the one sought: those calls are drawn, not heard. */
+  let rebuilding = false;
+  let audioHeld = false;
+  const toggleSound = (): void => {
+    audio.setMuted(!audio.muted);
+    gunWidgets?.setSound(audio.muted);
+    game?.messages.push('info', audio.muted ? 'SOUND OFF. N turns it on.' : 'SOUND ON.', game.simTime);
+  };
+  if (game) {
+    window.__audio = audio;
+    window.__director = () => director;
+    audio
+      .fetch()
+      .then((ids) => {
+        director = new AudioDirector(audio, ids);
+        tapEffects(sea.fx, (name, args) => {
+          if (!rebuilding) director?.onEffect(name, args);
+        });
+      })
+      .catch((err) => console.warn('sound unavailable:', err));
+    const unlock = () => audio.unlock();
+    for (const type of ['pointerup', 'touchend', 'click', 'keydown'] as const) window.addEventListener(type, unlock, { passive: true });
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'KeyN' && !e.repeat && !e.metaKey && !e.ctrlKey && !e.altKey) toggleSound();
+    });
+    document.addEventListener('visibilitychange', () => (document.hidden ? audio.suspend() : audioHeld ? undefined : audio.resume()));
   }
 
   const touchCapable = q.get('touch') === '1' || (navigator.maxTouchPoints > 0 && window.matchMedia('(pointer: coarse)').matches);
   const initialDevice: InputDevice = touchCapable ? 'touch' : 'keyboard-mouse';
   document.body.dataset.input = initialDevice;
   const widgets = new HelmWidgets(overlayRoot);
-  const gunWidgets = game ? new GunneryWidgets(overlayRoot) : null;
+  const gunWidgets = game ? new GunneryWidgets(overlayRoot, toggleSound) : null;
+  gunWidgets?.setSound(audio.muted);
   const hud = new HelmHud(overlayRoot);
   hud.setDevice(initialDevice);
   const gunHud = game ? new GunneryHud(overlayRoot) : null;
@@ -291,7 +332,7 @@ async function boot(): Promise<void> {
     let instance = anchored.get(id);
     if (!instance) {
       instance = sea.addShip(buildShip(entry.spec));
-      if (entry.paint) instance.paint = { ...instance.paint, ...entry.paint };
+      instance.paint = { ...instance.paint, ...paintOf(entry) };
       anchored.set(id, instance);
     }
     for (const [other, inst] of anchored) inst.visible = other === id;
@@ -368,6 +409,13 @@ async function boot(): Promise<void> {
     // Closing from 12 km takes minutes at the real rate: let the clock run faster while nothing needs a steady hand.
     controls.addSlider('Time scale', 1, 10, 1, () => tscale, (v) => (tscale = v), (v) => `x${v.toFixed(0)}`);
     if (game) controls.addToggle('Tracers', (on) => (sea.fx.tracers = on), sea.fx.tracers);
+    if (game) {
+      controls.addSlider('Volume', 0, 1, 0.05, () => audio.volume, (v) => audio.setVolume(v), (v) => `${Math.round(v * 100)}%`);
+      controls.addToggle('Sound', (on) => {
+        audio.setMuted(!on);
+        gunWidgets?.setSound(!on);
+      }, !audio.muted);
+    }
     controls.addToggle('Sweep turrets', (on) => (player.sweep = on));
     controls.addToggle('Wheel returns to midships (touch)', (on) => (widgets.autoCenter = on), true);
     if (freeCam) {
@@ -515,6 +563,16 @@ async function boot(): Promise<void> {
   // A touch or a click on the picture cuts away from the shell camera.
   canvas.addEventListener('pointerdown', cutShellCam);
 
+  /** Go to a moment of the replay without sounding the half minute of gunfire that is replayed, unseen, to rebuild the smoke. */
+  const seekSilently = (p: ReplayPlayer, t: number): void => {
+    rebuilding = true;
+    try {
+      p.seek(t);
+    } finally {
+      rebuilding = false;
+    }
+  };
+
   const enterReplay = (secondsBack: number): void => {
     if (!game || !recorder || replay || menu) return;
     const range = recorder.range;
@@ -546,7 +604,7 @@ async function boot(): Promise<void> {
     };
     replayCam.setMode('auto');
     replayCam.reset();
-    player.seek(Math.max(range.start, range.end - secondsBack));
+    seekSilently(player, Math.max(range.start, range.end - secondsBack));
     document.body.dataset.replay = '1';
     replayHud?.show(true);
   };
@@ -599,7 +657,7 @@ async function boot(): Promise<void> {
     const r = replay!;
     const p = r.player;
     if (pendingSeek !== null) {
-      p.seek(p.start + pendingSeek);
+      seekSilently(p, p.start + pendingSeek);
       replayCam.reset();
       pendingSeek = null;
     }
@@ -615,6 +673,12 @@ async function boot(): Promise<void> {
       camera.fovYDeg = shot.fovDeg;
     }
     replayHud?.update({ at: p.t - p.start, span: p.end - p.start, playing: p.playing, speed: p.speed, camera: replayCam.mode });
+    if (director && game) {
+      // The replay is heard from where its camera is, at its speed; the enemy's shells in the air now are not the replay's.
+      const heard = game.soundState({ x: camera.position[0], z: camera.position[2], yawDeg: camera.yawDeg }, p.playing ? p.speed * slow : 0, !p.playing);
+      heard.incoming = [];
+      director.update(dt, heard);
+    }
   };
 
   // ---- the frame loop ---------------------------------------------------------------------------
@@ -664,6 +728,11 @@ async function boot(): Promise<void> {
       // At the front door the ship lies at anchor and nothing the player presses steers her.
       const intent = menu ? (input.update(), idleIntent) : input.update();
       if (intent.pause) paused = !paused;
+      if (paused !== audioHeld) {
+        audioHeld = paused;
+        if (paused) audio.suspend();
+        else audio.resume();
+      }
       if (controls.cycleSun) {
         sea.params.sunElevationDeg = ((sea.params.sunElevationDeg + 12 + dt * 2.5) % 72) - 12;
       }
@@ -740,6 +809,7 @@ async function boot(): Promise<void> {
           camera.fovYDeg = shellShot.fovDeg;
         }
         gunWidgets?.setShellCam(shellCamOn);
+        if (director && !menu) director.update(dt, game.soundState({ x: camera.position[0], z: camera.position[2], yawDeg: camera.yawDeg }, tscale * shellSlow, paused));
         // The HUD projects ships onto the screen, so it needs this frame's view, not last frame's.
         camera.update(canvas.clientWidth / Math.max(canvas.clientHeight, 1));
         const d = player.dynamics;

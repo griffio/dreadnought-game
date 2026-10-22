@@ -18,6 +18,7 @@ export class GunneryWidgets implements InputSource {
   private readonly shellBtn: HTMLButtonElement;
   private readonly camBtn: HTMLButtonElement;
   private readonly replayBtn: HTMLButtonElement;
+  private readonly soundBtn: HTMLButtonElement;
   private readonly fireLabel: HTMLElement;
   private readonly autoLabel: HTMLElement;
   private readonly deflLabels: HTMLElement[];
@@ -39,7 +40,7 @@ export class GunneryWidgets implements InputSource {
   private plotToggle = false;
   private touched = false;
 
-  constructor(root: HTMLElement) {
+  constructor(root: HTMLElement, onSound: () => void = () => {}) {
     this.element = document.createElement('div');
     this.element.className = 'gtouch';
 
@@ -54,6 +55,7 @@ export class GunneryWidgets implements InputSource {
     this.shellBtn = this.button('SHELL AP', 'shell');
     this.camBtn = this.button('SHELL CAM', 'shellcam');
     this.replayBtn = this.button('REPLAY', 'replaybtn');
+    this.soundBtn = this.button('SOUND', 'soundbtn');
     const plot = this.button('PLOT', 'plot');
     const rangeUp = this.button('RANGE +', 'step');
     const rangeDown = this.button('RANGE -', 'step');
@@ -62,7 +64,7 @@ export class GunneryWidgets implements InputSource {
     const steppers = document.createElement('div');
     steppers.className = 'steppers';
     steppers.append(rangeUp, rangeDown, deflL, deflR);
-    this.element.append(this.fire, this.sight, cease, this.auto, next, damage, this.tubes, this.spotterBtn, this.shellBtn, this.camBtn, this.replayBtn, plot, steppers);
+    this.element.append(this.fire, this.sight, cease, this.auto, next, damage, this.tubes, this.spotterBtn, this.shellBtn, this.camBtn, this.replayBtn, this.soundBtn, plot, steppers);
     this.fireLabel = this.fire.querySelector('span')!;
     this.autoLabel = this.auto.querySelector('span')!;
     this.deflLabels = [deflL.querySelector('span')!, deflR.querySelector('span')!];
@@ -92,6 +94,7 @@ export class GunneryWidgets implements InputSource {
     this.press(this.shellBtn, () => (this.shellToggle = true));
     this.press(this.camBtn, () => (this.camToggle = true));
     this.press(this.replayBtn, () => (this.replayPress = true));
+    this.press(this.soundBtn, onSound);
     this.press(plot, () => (this.plotToggle = true));
     this.press(rangeUp, () => this.rangeSteps++);
     this.press(rangeDown, () => this.rangeSteps--);
@@ -181,6 +184,12 @@ export class GunneryWidgets implements InputSource {
   /** The shell camera is on (each salvo is followed to its splash). */
   setShellCam(on: boolean): void {
     this.camBtn.dataset.on = on ? '1' : '0';
+  }
+
+  /** The sound is off: the button says so. */
+  setSound(muted: boolean): void {
+    this.soundBtn.dataset.on = muted ? '0' : '1';
+    this.soundBtn.querySelector('span')!.textContent = muted ? 'SOUND OFF' : 'SOUND';
   }
 
   /** Reflect the battery's state: the ring fills as turrets come ready, and toggles show their state. */

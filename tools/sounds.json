@@ -1,0 +1,113 @@
+{
+  "_comment": "The game's sounds: where each comes from, and how it is made. Run python3 tools/process-sounds.py. Every entry names its source and licence (CC0 needs no credit; CC-BY does, and goes on the credits screen). The ElevenLabs sounds in tools/sfx-prompts.json are added by the tool with defaults (loops quieter, one-shots to -2 dBFS).",
+  "sources": {
+    "naval-battle-set": {
+      "title": "Tiny Naval Battle Sounds Set (version 2)",
+      "author": "Iwan Gabovitch (qubodup)",
+      "licence": "CC0",
+      "url": "https://opengameart.org/content/tiny-naval-battle-sounds-set",
+      "note": "Made from US military and other public-domain recordings; the metal explosions are from freesound.org/people/qubodup/sounds/67474."
+    },
+    "elevenlabs": {
+      "title": "Sound effects made with ElevenLabs (text to sound effects, model eleven_text_to_sound_v2)",
+      "author": "generated with ElevenLabs from the prompts in tools/sfx-prompts.json",
+      "licence": "ElevenLabs terms of service (generated audio; whether commercial use is allowed depends on the plan the sounds were made under)",
+      "url": "https://elevenlabs.io/terms",
+      "note": "Made where there is no free real recording: the heavy guns, shell whistles, armour hits, engines and the sea, fire, alarms."
+    }
+  },
+  "sounds": [
+    {
+      "id": "splash-small-1",
+      "src": "naval-battle-set/Splash.ogg",
+      "bus": "sfx",
+      "peak": -3
+    },
+    {
+      "id": "splash-small-2",
+      "src": "naval-battle-set/SplashGverb.ogg",
+      "bus": "sfx",
+      "peak": -3
+    },
+    {
+      "id": "splash-big-1",
+      "src": "naval-battle-set/WaterSurfaceExplosion01.ogg",
+      "bus": "sfx",
+      "peak": -2
+    },
+    {
+      "id": "splash-big-2",
+      "src": "naval-battle-set/WaterSurfaceExplosion02.ogg",
+      "bus": "sfx",
+      "peak": -2
+    },
+    {
+      "id": "splash-big-3",
+      "src": "naval-battle-set/WaterSurfaceExplosion03.ogg",
+      "bus": "sfx",
+      "peak": -2
+    },
+    {
+      "id": "splash-big-4",
+      "src": "naval-battle-set/WaterSurfaceExplosion04.ogg",
+      "bus": "sfx",
+      "peak": -2
+    },
+    {
+      "id": "splash-big-5",
+      "src": "naval-battle-set/WaterSurfaceExplosion05.ogg",
+      "bus": "sfx",
+      "peak": -2
+    },
+    {
+      "id": "splash-big-6",
+      "src": "naval-battle-set/WaterSurfaceExplosion06.ogg",
+      "bus": "sfx",
+      "peak": -2
+    },
+    {
+      "id": "splash-big-7",
+      "src": "naval-battle-set/WaterSurfaceExplosion07.ogg",
+      "bus": "sfx",
+      "peak": -2
+    },
+    {
+      "id": "splash-big-8",
+      "src": "naval-battle-set/WaterSurfaceExplosion08.ogg",
+      "bus": "sfx",
+      "peak": -2
+    },
+    {
+      "id": "hit-burst-3",
+      "src": "naval-battle-set/ExplosionMetal.ogg",
+      "bus": "sfx",
+      "peak": -2
+    },
+    {
+      "id": "hit-burst-4",
+      "src": "naval-battle-set/ExplosionMetalGverb.ogg",
+      "bus": "sfx",
+      "peak": -2
+    },
+    {
+      "id": "gun-light-3",
+      "src": "naval-battle-set/GunShot.ogg",
+      "bus": "sfx",
+      "peak": -2
+    },
+    {
+      "id": "gun-light-4",
+      "src": "naval-battle-set/GunShotGverb.ogg",
+      "bus": "sfx",
+      "peak": -2
+    },
+    {
+      "id": "ship-movement",
+      "src": "naval-battle-set/BattleShipMovementAmbient.ogg",
+      "bus": "ambience",
+      "peak": -8,
+      "loop": true,
+      "stereo": true
+    }
+  ]
+}
