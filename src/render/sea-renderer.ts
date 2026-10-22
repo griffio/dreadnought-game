@@ -92,6 +92,12 @@ export interface SeaDebugFlags {
   skipClouds: boolean;
   skipFx: boolean;
   skipTerrain: boolean;
+  /** The survey's ladder of the ship's finish, 0 (all of it) to 5 (flat colour, no shadow, no reflection): see ship.wgsl. */
+  shipDetail: number;
+  /** Draw every ship with the pipeline that can discard pixels, as the sight's cutaway needs (the survey's comparison). */
+  shipDiscard: boolean;
+  /** Draw only part of each ship: 0 all of her, 1 her hull and decks, 2 her works (the survey's way of finding where a cost is). */
+  shipParts: number;
 }
 
 /** Wakes farther than this from the camera are not built (they would be a few pixels). */
@@ -116,6 +122,9 @@ export class SeaRenderer {
     skipSkyDraw: false,
     skipClouds: false,
     skipTerrain: false,
+    shipDetail: 0,
+    shipDiscard: false,
+    shipParts: 0,
     skipFx: false,
   };
   /** Gunnery spectacle: muzzle blasts, splashes, bursts, tracers. */
@@ -435,7 +444,7 @@ export class SeaRenderer {
     this.wake.setVertices(sink.count);
 
     device.queue.writeBuffer(this.sceneBuffer, 0, s.data, 0, SCENE_UPLOAD_FLOATS);
-    this.ships.update(camera.position, this.simTime);
+    this.ships.update(camera.position, this.simTime, this.debug.shipDetail);
     this.land.update(camera);
     const drawFx = !this.debug.skipFx;
     if (drawFx) {
@@ -503,7 +512,7 @@ export class SeaRenderer {
     if (!this.debug.skipOceanDraw) this.surface.draw(pass);
     this.wake.draw(pass);
     if (!this.debug.skipTerrain) this.land.draw(pass);
-    if (drawShips) this.ships.draw(pass);
+    if (drawShips) this.ships.draw(pass, this.debug.shipDiscard, this.debug.shipParts);
     if (drawFx) this.particles.draw(pass);
     pass.end();
 

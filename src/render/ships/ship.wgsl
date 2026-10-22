@@ -3,6 +3,10 @@
 // Requires common, scene, sky_map, env, haze, shadow, ship_u. Group 2 = ship instance.
 const EARTH_R: f32 = 6371000.0;
 const M_FLAG: u32 = 10u;
+// Whether the shader may leave a pixel out (the sight's cutaway, a ship broken in two). A shader that can discard cannot have its hidden
+// surfaces removed before shading on a tile-based GPU, and a ship is drawn double-sided, so the ordinary pipeline is made without it: only a
+// ship's works (not her hull and decks, which are the pixels), and only when one of those needs it, are drawn with the pipeline that has it.
+override use_discard: bool = true;
 
 @group(2) @binding(0) var<uniform> ship: ShipU;
 
@@ -14,7 +18,8 @@ struct VIn {
 };
 
 struct VOut {
-  @builtin(position) clip: vec4<f32>,
+  // (Invariant: the depth pre-pass and the colour pass of a ship's works must agree on every pixel's depth to the last bit.)
+  @builtin(position) @invariant clip: vec4<f32>,
   @location(0) rel: vec3<f32>,
   @location(1) nrm: vec3<f32>,
   @location(2) obj: vec3<f32>,
@@ -43,6 +48,15 @@ fn vs(in: VIn) -> VOut {
     let wave = 0.15 * sin(k1) + 0.06 * sin(k2);
     pos = in.pos + vec3<f32>(0.0, amp * u * 0.02 * sin(u * 9.0 - t * 1.1), amp * u * wave);
     nrm = normalize(vec3<f32>(ship.flags.x * (wave + u * (1.05 * cos(k1) + 0.78 * cos(k2))), 0.0, 1.0));
+  }
+  // A ship broken in two: her hull and decks (the sheets that cover most of her pixels) are cut here, not in the fragment shader, which would
+  // have to discard (see `use_discard`): what lies on the far side of the break is laid along it, a vertex at a time, and the wobble in where
+  // that is makes the torn edge zig-zag. Her works (turrets, funnels, masts) are cut in the fragment shader, along the same line.
+  if (ship.split.y != 0.0 && ((in.ids >> 8u) & 0xffu) <= M_DECK) {
+    let cut = ship.split.x + (value_noise(vec2<f32>(in.pos.y * 0.5 + in.pos.z * 0.37, in.pos.z * 0.8 - in.pos.y * 0.21)) - 0.5) * 2.0 * ship.split.z;
+    if ((in.pos.x - cut) * ship.split.y < 0.0) {
+      pos.x = cut;
+    }
   }
   let p_ship = nm * vec4<f32>(pos, 1.0);
   let n_ship = (nm * vec4<f32>(nrm, 0.0)).xyz;
@@ -155,7 +169,13 @@ fn dazzle_colour(obj: vec3<f32>, n: vec3<f32>, seed: f32) -> vec3<f32> {
 }
 
 fn hull_surface(obj: vec3<f32>, n: vec3<f32>, dx: vec3<f32>, dy: vec3<f32>) -> Surf {
-  let pl = plating(obj, n, vec2<f32>(3.1, 1.55));
+  // (`ship.flags.y` is the survey's ladder of how much of the ship's finish is drawn: 0 all of it, then the damage and lettering off at
+  // 1, the weathering pictures at 2, the noise and plating at 3, the shadow lookups at 4, and the reflections and haze at 5.)
+  let ladder = ship.flags.y;
+  var pl = vec2<f32>(0.0, 0.5);
+  if (ladder < 2.5) {
+    pl = plating(obj, n, vec2<f32>(3.1, 1.55));
+  }
   var col = ship.hull_grey.rgb * (0.93 + 0.14 * pl.y);
   if (ship.misc.w > 0.0) {
     col = mix(col, dazzle_colour(obj, n, ship.misc.w) * (0.93 + 0.14 * pl.y), smoothstep(-0.7, -0.3, obj.y));
@@ -165,20 +185,29 @@ fn hull_surface(obj: vec3<f32>, n: vec3<f32>, dx: vec3<f32>, dy: vec3<f32>) -> S
   // Above the waterline: the plating's own detail, then the weathering, in proportion to how long she has been at sea.
   let weathering = ship.clock.y;
   let above = smoothstep(-0.9, -0.4, obj.y);
-  let steel = tri(L_STEEL, obj, n, 0.2, dx, dy);
+  var steel = vec4<f32>(0.5, 0.5, 0.0, 0.0);
+  var wear = vec4<f32>(0.0);
+  var drip = 0.0;
+  var grime = 0.0;
+  if (ladder < 1.5) {
+    steel = tri(L_STEEL, obj, n, 0.2, dx, dy);
+    // Paint worn through to rust and bare metal, and lighter chips where it lifts.
+    wear = tri(L_WEAR, obj, n, 0.16, dx, dy);
+    drip = side_tex(L_STREAK, obj, n, vec2<f32>(0.34, 0.085), dx, dy).r;
+    grime = tri(L_GRIME, obj, n, 0.1, dx, dy).r;
+  }
   col *= 1.0 + ((steel.r - 0.5) * 0.75 + (steel.g - 0.5) * 0.35) * above;
-  // Paint worn through to rust and bare metal, and lighter chips where it lifts.
-  let wear = tri(L_WEAR, obj, n, 0.16, dx, dy);
   // Rust does not fall evenly: it gathers in patches, and more of it low down and under the deck edge.
   let along = select(obj.x, obj.z, abs(n.x) > 0.6);
-  let blotch = smoothstep(0.32, 0.7, fbm(vec2<f32>(along * 0.1, obj.y * 0.2), 3));
+  var blotch = 0.5;
+  if (ladder < 2.5) {
+    blotch = smoothstep(0.32, 0.7, fbm(vec2<f32>(along * 0.1, obj.y * 0.2), 3));
+  }
   let rust = clamp(wear.r * weathering * above * mix(0.18, 1.0, blotch) * (0.55 + 0.6 * (1.0 - smoothstep(0.5, 6.0, obj.y))), 0.0, 1.0);
   col = mix(col, vec3<f32>(0.16, 0.075, 0.04) * (0.65 + 0.9 * wear.b), rust * 0.85);
   col *= 1.0 + wear.g * weathering * above * 0.35;
   // Rust drips from the deck edge and the scuppers, and grime and soot that gather low.
-  let drip = side_tex(L_STREAK, obj, n, vec2<f32>(0.34, 0.085), dx, dy).r;
   col = mix(col, vec3<f32>(0.13, 0.07, 0.045), drip * weathering * 0.62 * smoothstep(0.5, 4.5, obj.y));
-  let grime = tri(L_GRIME, obj, n, 0.1, dx, dy).r;
   col *= 1.0 - grime * weathering * above * (0.3 + 0.25 * (1.0 - smoothstep(0.0, 4.0, obj.y)));
 
   // Boot-topping band at the waterline, anti-fouling red below it.
@@ -223,12 +252,16 @@ fn deck_surface(obj: vec3<f32>, dx: vec3<f32>, dy: vec3<f32>) -> Surf {
   var col = vec3<f32>(0.40, 0.29, 0.18) * (0.78 + 0.34 * tone);
   col = mix(col, vec3<f32>(0.46, 0.41, 0.33), 0.25); // sun-bleached
   // The grain and the caulking come from the picture (planks run along the ship); the seams and butt joints above only lay them out.
-  let wood = textureSampleGrad(weather, weather_samp, obj.xz * 0.47, L_WOOD, dx.xz * 0.47, dy.xz * 0.47);
+  var wood = vec4<f32>(0.5, 0.0, 0.0, 0.0);
+  var deck_grime = 0.0;
+  if (ship.flags.y < 1.5) {
+    wood = textureSampleGrad(weather, weather_samp, obj.xz * 0.47, L_WOOD, dx.xz * 0.47, dy.xz * 0.47);
+    deck_grime = textureSampleGrad(weather, weather_samp, obj.xz * 0.11, L_GRIME, dx.xz * 0.11, dy.xz * 0.11).r;
+  }
   col *= 0.72 + 0.56 * wood.r;
   col *= 1.0 - 0.4 * wood.g;
   col *= 1.0 - 0.16 * seam - 0.3 * butt;
-  let grime = textureSampleGrad(weather, weather_samp, obj.xz * 0.11, L_GRIME, dx.xz * 0.11, dy.xz * 0.11).r;
-  col *= 1.0 - grime * ship.clock.y * 0.35;
+  col *= 1.0 - deck_grime * ship.clock.y * 0.35;
   var s: Surf;
   s.albedo = col;
   s.rough = 0.8;
@@ -238,11 +271,20 @@ fn deck_surface(obj: vec3<f32>, dx: vec3<f32>, dy: vec3<f32>) -> Surf {
 }
 
 fn steel_surface(obj: vec3<f32>, n: vec3<f32>, base: vec3<f32>, plate: vec2<f32>, layer: i32, dx: vec3<f32>, dy: vec3<f32>) -> Surf {
-  let pl = plating(obj, n, plate);
+  let ladder = ship.flags.y;
+  var pl = vec2<f32>(0.0, 0.5);
+  var detail = vec4<f32>(0.5);
+  var wear = vec4<f32>(0.0);
+  var grime = 0.0;
+  if (ladder < 2.5) {
+    pl = plating(obj, n, plate);
+  }
+  if (ladder < 1.5) {
+    detail = tri(layer, obj, n, 0.28, dx, dy);
+    wear = tri(L_WEAR, obj, n, 0.2, dx, dy);
+    grime = tri(L_GRIME, obj, n, 0.13, dx, dy).r;
+  }
   let weathering = ship.clock.y;
-  let detail = tri(layer, obj, n, 0.28, dx, dy);
-  let wear = tri(L_WEAR, obj, n, 0.2, dx, dy);
-  let grime = tri(L_GRIME, obj, n, 0.13, dx, dy).r;
   var s: Surf;
   var tint = base;
   if (ship.misc.w > 0.0) {
@@ -250,7 +292,10 @@ fn steel_surface(obj: vec3<f32>, n: vec3<f32>, base: vec3<f32>, plate: vec2<f32>
   }
   var col = tint * (0.94 + 0.12 * pl.y) * (1.0 - 0.16 * pl.x);
   col *= 1.0 + (detail.r - 0.5) * 0.7;
-  let blotch = smoothstep(0.32, 0.7, fbm(obj.xz * 0.12 + obj.y * 0.17, 3));
+  var blotch = 0.5;
+  if (ladder < 2.5) {
+    blotch = smoothstep(0.32, 0.7, fbm(obj.xz * 0.12 + obj.y * 0.17, 3));
+  }
   let rust = clamp(wear.r * weathering * 0.55 * mix(0.18, 1.0, blotch), 0.0, 1.0);
   col = mix(col, vec3<f32>(0.15, 0.072, 0.04) * (0.65 + 0.9 * wear.b), rust * 0.8);
   col *= 1.0 - grime * weathering * 0.28;
@@ -547,24 +592,46 @@ fn ggx_specular(n: vec3<f32>, v: vec3<f32>, l: vec3<f32>, rough: f32, f0: vec3<f
   return fres * (ndf * vis * nl);
 }
 
+// Has this pixel been cut away: is it within reach of the sight's lens, or on the far side of a ship's break (along the same torn line that
+// the vertex shader cuts her hull and decks on)?
+fn cut_out(rel: vec3<f32>, obj: vec3<f32>) -> bool {
+  if (ship.misc.z > 0.0 && length(rel) < ship.misc.z) {
+    return true;
+  }
+  if (ship.split.y != 0.0) {
+    let rag = (value_noise(vec2<f32>(obj.y * 0.5 + obj.z * 0.37, obj.z * 0.8 - obj.y * 0.21)) - 0.5) * 2.0 * ship.split.z;
+    if ((obj.x - ship.split.x - rag) * ship.split.y < 0.0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// The depth pre-pass of a ship's cuttable works: only what is cut away is left out, and nothing is drawn. The colour pass then shades just
+// the pixels that kept their depth, without discarding, so that hidden parts of the works are never shaded.
+@fragment
+fn fs_depth(in: VOut) -> @location(0) vec4<f32> {
+  if (cut_out(in.rel, in.obj)) {
+    discard;
+  }
+  return vec4<f32>(0.0);
+}
+
 @fragment
 fn fs(in: VOut) -> @location(0) vec4<f32> {
   // The position's screen derivatives, taken before anything can leave the pixel early, for the texture lookups below.
   let dpx = dpdx(in.obj);
   let dpy = dpdy(in.obj);
   // The director's sight sits among the legs of the mast and sees out of it: nothing of the ship that close to the lens is drawn.
-  if (ship.misc.z > 0.0 && length(in.rel) < ship.misc.z) {
+  if (use_discard && cut_out(in.rel, in.obj)) {
     discard;
   }
   // A ship that has broken in two is drawn as two parts, each cut off along a torn line: the part on the far side of it is not drawn.
   var tear_char = 0.0;
   var tear_heat = 0.0;
   if (ship.split.y != 0.0) {
-    let rag = (fbm(in.obj.zy * vec2<f32>(0.55, 0.8) + vec2<f32>(in.obj.y * 0.3, 7.0), 3) - 0.5) * 2.0 * ship.split.z;
-    let into = (in.obj.x - ship.split.x - rag) * ship.split.y;
-    if (into < 0.0) {
-      discard;
-    }
+    let rag = (value_noise(vec2<f32>(in.obj.y * 0.5 + in.obj.z * 0.37, in.obj.z * 0.8 - in.obj.y * 0.21)) - 0.5) * 2.0 * ship.split.z;
+    let into = max((in.obj.x - ship.split.x - rag) * ship.split.y, 0.0);
     tear_char = 1.0 - smoothstep(0.0, 3.5, into);
     // The torn edge is red-hot at first, and cools over half a minute.
     tear_heat = (1.0 - smoothstep(0.0, 1.6, into)) * exp(-ship.split.w / 30.0);
@@ -589,7 +656,10 @@ fn fs(in: VOut) -> @location(0) vec4<f32> {
   }
   // Her hull number on the bow, and the letters of her turrets, in white paint (worn a little, as the rest of her is).
   var lettering = 0.0;
-  if (node == 0u && material == M_HULL) {
+  let ladder = ship.flags.y;
+  if (ladder >= 0.5) {
+    // (the survey's ladder: no lettering)
+  } else if (node == 0u && material == M_HULL) {
     lettering = hull_number(in.obj, normalize(in.nrm_obj), max(length(dpx), length(dpy)));
   } else if (node != 0u && material == M_TURRET) {
     lettering = turret_letter(node, in.obj, normalize(in.nrm_obj), max(length(dpx), length(dpy)));
@@ -603,13 +673,13 @@ fn fs(in: VOut) -> @location(0) vec4<f32> {
     s.emit += vec3<f32>(1.0, 0.32, 0.06) * tear_heat * (0.55 + 0.45 * fbm(in.obj.zy * 1.7 + vec2<f32>(ship.clock.x * 0.2, 0.0), 3)) * 1.6;
   }
   // Hits leave their marks on the static hull (node 0), not on a turret, which turns under them.
-  if ((in.ids & 0xffu) == 0u) {
+  if ((in.ids & 0xffu) == 0u && ladder < 0.5) {
     s = with_decals(s, in.obj, normalize(in.nrm_obj), dpx, dpy);
   }
 
   // A turret that has been wrecked, and anything else burnt, is black, and the odd ember glows in it.
   let burnt = ship.node_char[node >> 2u][node & 3u];
-  if (burnt > 0.0) {
+  if (burnt > 0.0 && ladder < 0.5) {
     s = charred(s, in.obj, burnt);
   }
 
@@ -623,27 +693,36 @@ fn fs(in: VOut) -> @location(0) vec4<f32> {
 
   let l = scene.sun_dir.xyz;
   let nl = saturate(dot(n, l));
-  let sh = shadow_factor(in.rel, n);
+  var sh = 1.0;
+  if (ladder < 3.5) {
+    sh = shadow_factor(in.rel, n);
+  }
   let sun = scene.sun_irr.rgb;
 
   let amb = scene.ambient.rgb * mix(0.35, 1.0, 0.5 + 0.5 * n.y) * s.ao;
   let diffuse_colour = s.albedo * (1.0 - s.metal);
   var col = diffuse_colour * (amb + sun * (nl * sh / PI));
 
-  let f0 = mix(vec3<f32>(0.04), s.albedo, s.metal);
-  col += ggx_specular(n, v, l, s.rough, f0) * sun * sh;
+  if (ladder < 4.5) {
+    let f0 = mix(vec3<f32>(0.04), s.albedo, s.metal);
+    col += ggx_specular(n, v, l, s.rough, f0) * sun * sh;
 
-  // Sky/sea reflection, strongest on glossy and grazing surfaces.
-  var r = reflect(-v, n);
-  let sea = scene.ambient.rgb * 0.18;
-  let up = env_radiance(vec3<f32>(r.x, max(r.y, 0.02), r.z));
-  let env = mix(sea, up, smoothstep(-0.25, 0.1, r.y));
-  let nv = max(dot(n, v), 0.0);
-  let gloss = (1.0 - s.rough) * (1.0 - s.rough);
-  col += env * (f0 + (vec3<f32>(1.0) - f0) * pow(1.0 - nv, 5.0)) * gloss * s.ao;
+    // Sky/sea reflection, strongest on glossy and grazing surfaces.
+    var r = reflect(-v, n);
+    let sea = scene.ambient.rgb * 0.18;
+    let up = env_radiance(vec3<f32>(r.x, max(r.y, 0.02), r.z));
+    let env = mix(sea, up, smoothstep(-0.25, 0.1, r.y));
+    let nv = max(dot(n, v), 0.0);
+    let gloss = (1.0 - s.rough) * (1.0 - s.rough);
+    col += env * (f0 + (vec3<f32>(1.0) - f0) * pow(1.0 - nv, 5.0)) * gloss * s.ao;
+  }
 
   col += s.emit / scene.sun_irr.w;
-  col += fire_glow(in.obj, normalize(in.nrm_obj)) * 0.3 / scene.sun_irr.w;
-  col = apply_haze(col, in.rel);
+  if (ladder < 0.5) {
+    col += fire_glow(in.obj, normalize(in.nrm_obj)) * 0.3 / scene.sun_irr.w;
+  }
+  if (ladder < 4.5) {
+    col = apply_haze(col, in.rel);
+  }
   return vec4<f32>(col, 1.0);
 }

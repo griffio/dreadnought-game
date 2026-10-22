@@ -13,6 +13,40 @@ test('perf survey runs and every step reports sensible numbers', async ({ page }
     expect(r.fps).toBeGreaterThan(0.5);
     expect(r.costMs).toBeGreaterThan(0);
   }
-  expect(rows.length).toBe(18);
+  expect(rows.length).toBe(32);
+  // The new scenes are in it: the ship hurt, broken in two, and the wreckage.
+  for (const name of ['ship drawn with the discarding shader', 'ship finish: and no reflections or haze', 'ship hurt: fires, wrecks, dazzle', 'ship broken in two', 'wreckage and oil slick', 'ship under the sight cutaway', 'baseline (after the ship scenes)']) expect(rows.map((r) => r.name)).toContain(name);
+  // And the dev server has had the report to keep.
+  await expect.poll(() => page.evaluate(() => window.__perfSent ?? ''), { timeout: 10_000 }).toMatch(/^perf-results\/survey-.*-macintosh\.json$/);
+  expect(await page.evaluate(() => window.__gpuErrors ?? [])).toEqual([]);
+});
+
+// The short survey of the ship alone, which is what the iPad is asked to run for the ship's cost.
+test('the ship survey runs only the ship steps, in order, and sends its report', async ({ page }) => {
+  test.setTimeout(300_000);
+  await page.goto('/?scenario=duel&player=queen-elizabeth&foe=kaiser&trange=6&hud=0&survey=ship');
+  await page.waitForFunction(() => (window.__survey?.length ?? 0) > 0, undefined, { timeout: 280_000 });
+  const rows = await page.evaluate(() => window.__survey!);
+  expect(rows.map((r) => r.name)).toEqual([
+    'baseline',
+    'ship drawn with the discarding shader',
+    'ship finish: no damage looks or lettering',
+    'ship finish: and no weathering pictures',
+    'ship finish: and no noise or plating',
+    'ship finish: and no shadow lookups',
+    'ship finish: and no reflections or haze',
+    'baseline (after the ship ladder)',
+    'ship hurt: fires, wrecks, dazzle',
+    'ship broken in two',
+    'ship broken in two: hull and decks only',
+    'ship broken in two: works only',
+    'wreckage and oil slick',
+    'ship under the sight cutaway',
+    'baseline (after the ship scenes)',
+    'no sun shadow',
+    'no ship (and no shadow)',
+  ]);
+  for (const r of rows) expect(r.costMs).toBeGreaterThan(0);
+  await expect.poll(() => page.evaluate(() => window.__perfSent ?? ''), { timeout: 10_000 }).toMatch(/^perf-results\/survey-/);
   expect(await page.evaluate(() => window.__gpuErrors ?? [])).toEqual([]);
 });

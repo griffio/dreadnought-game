@@ -1519,6 +1519,11 @@ export class Game {
     return this.gunnery.status(this.player.frame);
   }
 
+  /** How high above her waterline the director's lens is, ship space, metres (where the sight's cutaway is centred). */
+  get directorHeight(): number {
+    return this.director[1];
+  }
+
   get playerFrame(): ShipFrame {
     return this.player.frame;
   }

@@ -30,10 +30,44 @@ interface Step {
   battle?: boolean;
   /** Lay a destroyer's smoke screen across the view before measuring. */
   screen?: boolean;
+  /** Part of the shorter survey of the ship alone (`survey=ship`). */
+  ship?: boolean;
+  /** A scene put on for the step and taken off after it: the ship hurt, the ship broken in two, the wreckage of one that has gone down. */
+  scene?: Scene;
 }
 
+/** Something to put on screen for one step: `on` sets it up, `off` puts everything back as it was. */
+export type Scene = 'hurt' | 'broken' | 'wreckage' | 'cutaway';
+export type Scenes = Partial<Record<Scene, { on(): void; off(): void }>>;
+
 const STEPS: Step[] = [
-  { name: 'baseline', scale: 1, flags: {} },
+  { name: 'baseline', scale: 1, flags: {}, ship: true },
+  // The ship drawn by the pipeline that can discard pixels, as only a ship under the sight's cutaway or broken in two now is: on a
+  // tile-based GPU that costs the hidden-surface removal, and the ship is double-sided.
+  { name: 'ship drawn with the discarding shader', scale: 1, flags: { shipDiscard: true }, ship: true },
+  // The ship's finish, taken off a layer at a time (see the ladder in ship.wgsl): each row is the one before less something, so what a row
+  // saves is the cost of that layer. The damage looks and lettering first, then the weathering pictures, the noise and plating, the
+  // shadow lookups, and last the reflections and haze, which leaves flat lit colour.
+  { name: 'ship finish: no damage looks or lettering', scale: 1, flags: { shipDetail: 1 }, ship: true },
+  { name: 'ship finish: and no weathering pictures', scale: 1, flags: { shipDetail: 2 }, ship: true },
+  { name: 'ship finish: and no noise or plating', scale: 1, flags: { shipDetail: 3 }, ship: true },
+  { name: 'ship finish: and no shadow lookups', scale: 1, flags: { shipDetail: 4 }, ship: true },
+  { name: 'ship finish: and no reflections or haze', scale: 1, flags: { shipDetail: 5 }, ship: true },
+  { name: 'baseline (after the ship ladder)', scale: 1, flags: {}, ship: true },
+  // What the damage looks cost: a ship with fires lighting her hull, two turrets wrecked and charred, and painted in dazzle; a ship broken
+  // in two (a second ship drawn, each cut by the shader); and the wreckage and oil that a ship leaves on the water.
+  { name: 'ship hurt: fires, wrecks, dazzle', scale: 1, flags: {}, scene: 'hurt', ship: true },
+  { name: 'ship broken in two', scale: 1, flags: {}, scene: 'broken', ship: true },
+  // The same, drawn in part, to see where its cost is: the hull and decks only (cut at the vertices), and the works only (cut by discarding).
+  { name: 'ship broken in two: hull and decks only', scale: 1, flags: { shipParts: 1 }, scene: 'broken', ship: true },
+  { name: 'ship broken in two: works only', scale: 1, flags: { shipParts: 2 }, scene: 'broken', ship: true },
+  { name: 'wreckage and oil slick', scale: 1, flags: {}, scene: 'wreckage', ship: true },
+  // The ship's works drawn by the pipeline that can discard, as they are in the director's sight (the lens is not moved: what is measured is the
+  // pipeline's cost, not the view).
+  { name: 'ship under the sight cutaway', scale: 1, flags: {}, scene: 'cutaway', ship: true },
+  // The same as the baseline, to bracket the rows above: a device that is still warming up reads the first baseline high, so each is
+  // better compared with the mean of the two plain rows either side of it than with the first alone.
+  { name: 'baseline (after the ship scenes)', scale: 1, flags: {}, ship: true },
   { name: 'battle effects drawn', scale: 1, flags: {}, battle: true },
   { name: 'battle effects hidden', scale: 1, flags: { skipFx: true }, battle: true },
   { name: 'smoke screen drawn', scale: 1, flags: {}, screen: true },
@@ -44,8 +78,8 @@ const STEPS: Step[] = [
   { name: 'land drawn (again)', scale: 1, flags: {} },
   { name: 'resolution 75%', scale: 0.75, flags: {} },
   { name: 'resolution 50%', scale: 0.5, flags: {} },
-  { name: 'no sun shadow', scale: 1, flags: { skipShadow: true } },
-  { name: 'no ship (and no shadow)', scale: 1, flags: { skipShips: true } },
+  { name: 'no sun shadow', scale: 1, flags: { skipShadow: true }, ship: true },
+  { name: 'no ship (and no shadow)', scale: 1, flags: { skipShips: true }, ship: true },
   { name: 'no bloom', scale: 1, flags: { skipBloom: true } },
   { name: 'no cloud/ambient refresh', scale: 1, flags: { skipClouds: true } },
   { name: 'ocean field frozen (no FFT)', scale: 1, flags: { freezeOcean: true } },
@@ -96,6 +130,7 @@ export class PerfSurvey {
     private readonly pixelCount: () => number,
     private readonly startBattle: () => void = () => {},
     private readonly startScreen: () => void = () => {},
+    private readonly scenes: Scenes = {},
   ) {}
 
   onFrame(intervalMs: number, cpuMsPerFrame: number): void {
@@ -116,7 +151,8 @@ export class PerfSurvey {
     return { fps: this.frames / seconds, intervalMs: this.intervalSum / n, cpuMs: this.cpuSum / n };
   }
 
-  async run(log: (line: string) => void): Promise<SurveyRow[]> {
+  /** `only` 'ship' is the short survey of the ship alone (about a minute and a half); anything else is every step. */
+  async run(log: (line: string) => void, only: 'all' | 'ship' = 'all'): Promise<SurveyRow[]> {
     this.running = true;
     const flags = this.sea.debug;
     const defaults = { ...flags };
@@ -130,24 +166,31 @@ export class PerfSurvey {
       const repeats = probe.intervalMs > SATURATED_MS ? 1 : STRESS_REPEATS;
       log(`calibration: ${probe.fps.toFixed(1)} fps at 1 frame per refresh -> stress x${repeats}`);
 
-      for (const step of STEPS) {
+      for (const step of STEPS.filter((x) => only === 'all' || x.ship)) {
         Object.assign(flags, defaults, step.flags);
         this.setScale(step.scale);
         this.repeats = repeats;
+        const scene = step.scene ? this.scenes[step.scene] : undefined;
         const prime = () => {
           if (step.battle) this.startBattle();
           if (step.screen) this.startScreen();
         };
-        prime();
-        let m = await this.measure();
+        scene?.on();
+        let m: { fps: number; intervalMs: number; cpuMs: number };
         let used = repeats;
-        // A step that still finishes within a display refresh has hidden its cost; render more frames per refresh
-        // until the GPU is saturated (or we hit the cap) so every row is a real number.
-        while (m.intervalMs < SATURATED_MS && used < MAX_REPEATS) {
-          used = Math.min(used * 2, MAX_REPEATS);
-          this.repeats = used;
+        try {
           prime();
-          m = await this.measure(REMEASURE_WARMUP_MS);
+          m = await this.measure();
+          // A step that still finishes within a display refresh has hidden its cost; render more frames per refresh
+          // until the GPU is saturated (or we hit the cap) so every row is a real number.
+          while (m.intervalMs < SATURATED_MS && used < MAX_REPEATS) {
+            used = Math.min(used * 2, MAX_REPEATS);
+            this.repeats = used;
+            prime();
+            m = await this.measure(REMEASURE_WARMUP_MS);
+          }
+        } finally {
+          scene?.off();
         }
         const costMs = m.intervalMs / used;
         const baseline = rows[0]?.costMs ?? costMs;

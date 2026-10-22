@@ -3,6 +3,7 @@ import type { Combatant } from '../sim/combat/combatant';
 import { TUNING, type ShipDamage } from '../sim/damage/ship-damage';
 import type { ShipModel } from '../render/ships/forge/spec';
 import type { ShipInstance, ShipPaint } from '../render/ships/ship-renderer';
+import type { FireSite } from '../render/ships/fires';
 import { flagStreaming, rippleAt } from '../render/ships/flags';
 import { carry, sectionMatrix } from '../render/ships/section';
 import { BATTLESHIP_FLOATING, FloatingBody, fitWaterPlane } from '../sim/ships/buoyancy';
@@ -51,6 +52,8 @@ export class ShipActor implements WakeSource {
   private stern: ShipInstance | null = null;
   /** The direction her flags stream in, in ship space (radians from the bow, + starboard): it follows the wind she makes, a little late. */
   private flagAngle = Math.PI;
+  /** For the perf survey: her hurt as shown, whatever her damage model says (these fires, these turrets wrecked). */
+  private showcase: { fires: readonly FireSite[]; wreck: readonly string[] } | null = null;
   /** The split as it was last drawn, for the recorder. */
   private split: { x: number; age: number; sunk: number } | null = null;
 
@@ -142,6 +145,21 @@ export class ShipActor implements WakeSource {
   breakUp(x: number, now: number): void {
     if (this.broken) return;
     this.broken = { x, at: now };
+  }
+
+  /** For the perf survey: show her badly hurt (or as her damage model has her, for null). */
+  setShowcase(s: { fires: readonly FireSite[]; wreck: readonly string[] } | null): void {
+    for (const id of this.showcase?.wreck ?? []) this.instance.rig.repair(id);
+    this.showcase = s;
+  }
+
+  /** For the perf survey: break her in two at ship-space x, or make her whole again (null). */
+  debugBreak(x: number | null, now: number): void {
+    this.broken = x === null ? null : { x, at: now };
+    if (x === null) {
+      this.split = null;
+      this.showSplit(null);
+    }
   }
 
   get isBroken(): boolean {
@@ -287,6 +305,11 @@ export class ShipActor implements WakeSource {
 
   /** What has happened to her shows on her: a wrecked turret is blown apart and charred, and her fires light her hull. */
   private showDamage(): void {
+    if (this.showcase) {
+      for (const id of this.showcase.wreck) this.instance.rig.wreck(id);
+      this.instance.setFires(this.showcase.fires);
+      return;
+    }
     const dm = this.damage;
     if (!dm) return;
     for (const t of dm.turrets) if (t.state === 'destroyed') this.instance.rig.wreck(t.id);

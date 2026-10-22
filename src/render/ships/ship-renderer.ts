@@ -10,6 +10,11 @@ import { mulMat4, type Mat4 } from '../../math/mat4';
 import { DECAL_FLOATS, DecalSet, MAX_DECALS } from './decals';
 import { MAX_FIRES, packFires, type FireSite } from './fires';
 import { ENSIGN_CODE, MARK_FLOATS, packMarks, type ShipMarkings } from './marks';
+import { MATERIAL } from './forge/mesh-builder';
+import { firstIndexAbove, sortTriangles } from './triangles';
+
+/** The materials that are her sheets: the hull and the decks, which cover most of her pixels. */
+const SHEETS: ReadonlySet<number> = new Set([MATERIAL.HULL, MATERIAL.DECK]);
 import { shipModelMatrix, type ShipPose } from './pose-matrix';
 import { MAX_NODES, ShipRig } from './rig';
 import { SHADOW_FORMAT, type ShadowMap } from './shadow-map';
@@ -43,6 +48,15 @@ export const ADMIRALTY_GREY: ShipPaint = {
 };
 
 /** One ship in the scene: model buffers, animation rig, world pose, paint and its uniform buffer. */
+/** The bind group layouts of a ship's own uniform (group 2, or 1 for the shadow) in each of the pipelines that draw her. */
+interface ShipLayouts {
+  main: GPUBindGroupLayout;
+  clip: GPUBindGroupLayout;
+  equal: GPUBindGroupLayout;
+  depth: GPUBindGroupLayout;
+  shadow: GPUBindGroupLayout;
+}
+
 export class ShipInstance {
   readonly rig: ShipRig;
   pose: ShipPose = { x: 0, z: 0, headingDeg: 0, heave: 0, pitch: 0, roll: 0 };
@@ -51,6 +65,27 @@ export class ShipInstance {
   visible = true;
   /** The marks of the hits she has taken, projected onto her hull by the shader. */
   readonly decals: DecalSet;
+  /** Does her works need the pipeline that can leave pixels out: does the sight sit among her mast, or is she broken in two? */
+  get needsClip(): boolean {
+    return (this.parent ?? this).cutaway > 0 || this.split.side !== 0;
+  }
+
+  /** Ship-space height below which nothing of her works can be within the cutaway's reach of the lens (the lens's height less the radius). */
+  cutawayFloor = Number.POSITIVE_INFINITY;
+
+  /** Her triangles: the sheets (hull, decks) first, then the works by height (see triangles.ts). */
+  readonly worksStart: number;
+  private readonly maxY: Float32Array;
+
+  /**
+   * Where the run of triangles that is drawn with the pipeline that can discard begins (it runs to the end). A ship broken in two cuts all
+   * her works that way (her sheets are cut at the vertices); under the sight's cutaway only the works that can reach the lens are.
+   */
+  get clipStart(): number {
+    if (this.split.side !== 0) return this.worksStart;
+    return this.worksStart + firstIndexAbove(this.maxY, (this.parent ?? this).cutawayFloor);
+  }
+
   /** Metres: none of the ship nearer the camera than this is drawn (the director's sight sits among her mast, and sees out of it). */
   cutaway = 0;
   /** The fires burning in her, ship-space position and intensity (x, y, z, w), the brightest first: they glow on her hull. */
@@ -74,6 +109,10 @@ export class ShipInstance {
   readonly indexCount: number;
   readonly uniformBuffer: GPUBuffer;
   readonly mainGroup: GPUBindGroup;
+  /** The same uniform for each of the other pipelines (a bind group made for one pipeline's layout does not fit another's). */
+  readonly clipGroup: GPUBindGroup;
+  readonly equalGroup: GPUBindGroup;
+  readonly depthGroup: GPUBindGroup;
   readonly shadowGroup: GPUBindGroup;
   private readonly data = new Float32Array(UNIFORM_FLOATS);
   private readonly model = new Float32Array(16);
@@ -85,8 +124,7 @@ export class ShipInstance {
   constructor(
     device: GPUDevice,
     readonly shipModel: ShipModel,
-    mainLayout: GPUBindGroupLayout,
-    shadowLayout: GPUBindGroupLayout,
+    layouts: ShipLayouts,
     parent: ShipInstance | null = null,
   ) {
     this.parent = parent;
@@ -96,6 +134,8 @@ export class ShipInstance {
       this.vertexBuffer = parent.vertexBuffer;
       this.indexBuffer = parent.indexBuffer;
       this.indexCount = parent.indexCount;
+      this.maxY = parent.maxY;
+      this.worksStart = parent.worksStart;
       this.decals = parent.decals;
     } else {
       this.rig = new ShipRig(shipModel);
@@ -110,7 +150,10 @@ export class ShipInstance {
         size: shipModel.indices.byteLength,
         usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
       });
-      device.queue.writeBuffer(this.indexBuffer, 0, shipModel.indices);
+      const sorted = sortTriangles(shipModel.vertices, shipModel.indices, SHEETS);
+      this.maxY = sorted.maxY;
+      this.worksStart = sorted.worksStart;
+      device.queue.writeBuffer(this.indexBuffer, 0, sorted.indices);
       this.indexCount = shipModel.indices.length;
       this.decals = new DecalSet();
     }
@@ -120,12 +163,15 @@ export class ShipInstance {
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
     const entries = [{ binding: 0, resource: { buffer: this.uniformBuffer } }];
-    this.mainGroup = device.createBindGroup({ layout: mainLayout, entries });
-    this.shadowGroup = device.createBindGroup({ layout: shadowLayout, entries });
+    this.mainGroup = device.createBindGroup({ layout: layouts.main, entries });
+    this.clipGroup = device.createBindGroup({ layout: layouts.clip, entries });
+    this.equalGroup = device.createBindGroup({ layout: layouts.equal, entries });
+    this.depthGroup = device.createBindGroup({ layout: layouts.depth, entries });
+    this.shadowGroup = device.createBindGroup({ layout: layouts.shadow, entries });
   }
 
   /** Pack pose, rig and paint into the uniform buffer. */
-  write(device: GPUDevice, cameraPos: Vec3, simTime = 0): void {
+  write(device: GPUDevice, cameraPos: Vec3, simTime = 0, detail = 0): void {
     const src = this.parent ?? this;
     if (!this.parent) this.rig.update();
     shipModelMatrix(this.pose, cameraPos, this.model);
@@ -147,7 +193,7 @@ export class ShipInstance {
       packMarks(this.shipModel, src.paint.markings, this.marks);
     }
     d.set(this.marks, c + MAX_NODES + MAX_FIRES * 4 + 4);
-    d.set([src.flutter, 0, ENSIGN_CODE[src.paint.markings?.ensign ?? 'white'], this.shipModel.length * 0.0242], c + MAX_NODES + MAX_FIRES * 4 + 4 + MARK_FLOATS);
+    d.set([src.flutter, detail, ENSIGN_CODE[src.paint.markings?.ensign ?? 'white'], this.shipModel.length * 0.0242], c + MAX_NODES + MAX_FIRES * 4 + 4 + MARK_FLOATS);
     device.queue.writeBuffer(this.uniformBuffer, 0, d);
   }
 
@@ -194,16 +240,33 @@ const VERTEX_LAYOUT: GPUVertexBufferLayout = {
   ],
 };
 
+/** What is bound for the ship pipeline besides each ship's own uniform: the scene, the sky and pictures, and the shadow map. */
+interface ShipBinds {
+  scene: GPUBindGroup;
+  env: GPUBindGroup;
+  shadow: GPUBindGroup;
+}
+
 export class ShipRenderer {
   readonly ships: ShipInstance[] = [];
 
   private constructor(
     private readonly device: GPUDevice,
     private readonly mainPipeline: GPURenderPipeline,
+    /** The same shader made with the power to discard pixels (see `use_discard` in ship.wgsl): the survey's comparison. */
+    private readonly clipPipeline: GPURenderPipeline,
+    /**
+     * A ship's cuttable works are drawn in two steps instead (see `draw`): their depth alone, by a shader that does the cutting, and then
+     * their colour, by the discard-free shader, only where the depth is the one the first step left.
+     */
+    private readonly depthPipeline: GPURenderPipeline,
+    private readonly equalPipeline: GPURenderPipeline,
     private readonly shadowPipeline: GPURenderPipeline,
-    private readonly mainSceneGroup: GPUBindGroup,
-    private readonly envGroup: GPUBindGroup,
-    private readonly shadowReadGroup: GPUBindGroup,
+    private readonly mainBinds: ShipBinds,
+    private readonly clipBinds: ShipBinds,
+    private readonly equalBinds: ShipBinds,
+    private readonly depthScene: GPUBindGroup,
+    private readonly depthEmpty: GPUBindGroup,
     private readonly shadowSceneGroup: GPUBindGroup,
   ) {}
 
@@ -218,9 +281,37 @@ export class ShipRenderer {
       label: 'ship',
       layout: 'auto',
       vertex: { module: mainMod, entryPoint: 'vs', buffers: [VERTEX_LAYOUT] },
-      fragment: { module: mainMod, entryPoint: 'fs', targets: [{ format: opts.colorFormat }] },
+      fragment: { module: mainMod, entryPoint: 'fs', targets: [{ format: opts.colorFormat }], constants: { use_discard: 0 } },
       primitive: { topology: 'triangle-list', cullMode: 'none' },
       depthStencil: { format: opts.depthFormat, depthWriteEnabled: true, depthCompare: 'greater' },
+      multisample: { count: opts.sampleCount },
+    });
+    // The same again, able to discard. (Its default layout is its own, so everything bound to it is made for it: see `ShipBinds`.)
+    const clipPipeline = device.createRenderPipeline({
+      label: 'ship-clip',
+      layout: 'auto',
+      vertex: { module: mainMod, entryPoint: 'vs', buffers: [VERTEX_LAYOUT] },
+      fragment: { module: mainMod, entryPoint: 'fs', targets: [{ format: opts.colorFormat }], constants: { use_discard: 1 } },
+      primitive: { topology: 'triangle-list', cullMode: 'none' },
+      depthStencil: { format: opts.depthFormat, depthWriteEnabled: true, depthCompare: 'greater' },
+      multisample: { count: opts.sampleCount },
+    });
+    const depthPipeline = device.createRenderPipeline({
+      label: 'ship-depth',
+      layout: 'auto',
+      vertex: { module: mainMod, entryPoint: 'vs', buffers: [VERTEX_LAYOUT] },
+      fragment: { module: mainMod, entryPoint: 'fs_depth', targets: [{ format: opts.colorFormat, writeMask: 0 }] },
+      primitive: { topology: 'triangle-list', cullMode: 'none' },
+      depthStencil: { format: opts.depthFormat, depthWriteEnabled: true, depthCompare: 'greater' },
+      multisample: { count: opts.sampleCount },
+    });
+    const equalPipeline = device.createRenderPipeline({
+      label: 'ship-equal',
+      layout: 'auto',
+      vertex: { module: mainMod, entryPoint: 'vs', buffers: [VERTEX_LAYOUT] },
+      fragment: { module: mainMod, entryPoint: 'fs', targets: [{ format: opts.colorFormat }], constants: { use_discard: 0 } },
+      primitive: { topology: 'triangle-list', cullMode: 'none' },
+      depthStencil: { format: opts.depthFormat, depthWriteEnabled: false, depthCompare: 'equal' },
       multisample: { count: opts.sampleCount },
     });
     const shadowPipeline = device.createRenderPipeline({
@@ -239,13 +330,10 @@ export class ShipRenderer {
     });
 
     const sceneEntry = { binding: 0, resource: { buffer: opts.sceneBuffer } };
-    return new ShipRenderer(
-      device,
-      mainPipeline,
-      shadowPipeline,
-      device.createBindGroup({ layout: mainPipeline.getBindGroupLayout(0), entries: [sceneEntry] }),
-      device.createBindGroup({
-        layout: mainPipeline.getBindGroupLayout(1),
+    const binds = (pipeline: GPURenderPipeline): ShipBinds => ({
+      scene: device.createBindGroup({ layout: pipeline.getBindGroupLayout(0), entries: [sceneEntry] }),
+      env: device.createBindGroup({
+        layout: pipeline.getBindGroupLayout(1),
         entries: [
           { binding: 0, resource: opts.skyView.createView() },
           { binding: 1, resource: opts.cloudLut.createView() },
@@ -256,53 +344,128 @@ export class ShipRenderer {
           { binding: 6, resource: opts.weathering.glyphs.createView() },
         ],
       }),
-      device.createBindGroup({
-        layout: mainPipeline.getBindGroupLayout(3),
+      shadow: device.createBindGroup({
+        layout: pipeline.getBindGroupLayout(3),
         entries: [
           { binding: 0, resource: opts.shadow.view },
           { binding: 1, resource: opts.shadow.sampler },
         ],
       }),
+    });
+    return new ShipRenderer(
+      device,
+      mainPipeline,
+      clipPipeline,
+      depthPipeline,
+      equalPipeline,
+      shadowPipeline,
+      binds(mainPipeline),
+      binds(clipPipeline),
+      binds(equalPipeline),
+      device.createBindGroup({ layout: depthPipeline.getBindGroupLayout(0), entries: [sceneEntry] }),
+      device.createBindGroup({ layout: depthPipeline.getBindGroupLayout(1), entries: [] }),
       device.createBindGroup({ layout: shadowPipeline.getBindGroupLayout(0), entries: [sceneEntry] }),
     );
   }
 
+  private layouts(): ShipLayouts {
+    return {
+      main: this.mainPipeline.getBindGroupLayout(2),
+      clip: this.clipPipeline.getBindGroupLayout(2),
+      equal: this.equalPipeline.getBindGroupLayout(2),
+      depth: this.depthPipeline.getBindGroupLayout(2),
+      shadow: this.shadowPipeline.getBindGroupLayout(1),
+    };
+  }
+
   add(model: ShipModel): ShipInstance {
-    const ship = new ShipInstance(
-      this.device,
-      model,
-      this.mainPipeline.getBindGroupLayout(2),
-      this.shadowPipeline.getBindGroupLayout(1),
-    );
+    const ship = new ShipInstance(this.device, model, this.layouts());
     this.ships.push(ship);
     return ship;
   }
 
   /** The second part of a ship that has broken in two: it shares her model, and is hidden until it is wanted. */
   addSection(parent: ShipInstance): ShipInstance {
-    const part = new ShipInstance(this.device, parent.shipModel, this.mainPipeline.getBindGroupLayout(2), this.shadowPipeline.getBindGroupLayout(1), parent);
+    const part = new ShipInstance(this.device, parent.shipModel, this.layouts(), parent);
     part.visible = false;
     this.ships.push(part);
     return part;
   }
 
   /** Upload every ship's pose and rig. Call once per frame before encoding. */
-  update(cameraPos: Vec3, simTime = 0): void {
-    for (const s of this.ships) s.write(this.device, cameraPos, simTime);
+  update(cameraPos: Vec3, simTime = 0, detail = 0): void {
+    for (const s of this.ships) s.write(this.device, cameraPos, simTime, detail);
   }
 
-  draw(pass: GPURenderPassEncoder): void {
+  /**
+   * Draw the ships. A ship's triangles are in three runs: her sheets (hull, decks), her works below the reach of the sight's lens, and her
+   * works that can be cut. Ordinarily all of them are drawn with the pipeline that cannot discard; a ship under the sight's cutaway or broken
+   * in two has the last run drawn with the one that can. On a tile-based GPU every switch to a pipeline that discards makes it settle what is
+   * hidden before it goes on, so every ship's discard-free runs are drawn first, and the runs that discard last.
+   *
+   * `forceClip` draws every ship whole with the discarding pipeline, which is what the survey compares them with; `parts` 1 draws only the
+   * sheets and 2 only the works (the survey's way of telling where the cost of a broken ship is).
+   */
+  draw(pass: GPURenderPassEncoder, forceClip = false, parts = 0): void {
     if (this.ships.length === 0) return;
-    pass.setPipeline(this.mainPipeline);
-    pass.setBindGroup(0, this.mainSceneGroup);
-    pass.setBindGroup(1, this.envGroup);
-    pass.setBindGroup(3, this.shadowReadGroup);
-    for (const s of this.ships) {
-      if (!s.visible) continue;
-      pass.setBindGroup(2, s.mainGroup);
+    let current: GPURenderPipeline | null = null;
+    const use = (clip: boolean, s: ShipInstance): void => {
+      const pipeline = clip ? this.clipPipeline : this.mainPipeline;
+      if (pipeline !== current) {
+        current = pipeline;
+        const binds = clip ? this.clipBinds : this.mainBinds;
+        pass.setPipeline(pipeline);
+        pass.setBindGroup(0, binds.scene);
+        pass.setBindGroup(1, binds.env);
+        pass.setBindGroup(3, binds.shadow);
+      }
+      pass.setBindGroup(2, clip ? s.clipGroup : s.mainGroup);
       pass.setVertexBuffer(0, s.vertexBuffer);
       pass.setIndexBuffer(s.indexBuffer, 'uint32');
-      pass.drawIndexed(s.indexCount);
+    };
+    // First, everything that needs no discarding.
+    for (const s of this.ships) {
+      if (!s.visible || forceClip) continue;
+      const first = parts === 2 ? s.worksStart : 0;
+      const last = parts === 1 ? s.worksStart : s.needsClip ? s.clipStart : s.indexCount;
+      if (last > first) {
+        use(false, s);
+        pass.drawIndexed(last - first, 1, first);
+      }
+    }
+    // Then the works that are cut. The survey's comparison draws every ship whole with the pipeline that discards. Otherwise a cuttable run
+    // is drawn in two steps for every ship in turn: its depth alone, by a shader that does the cutting and shades nothing, and then its colour,
+    // by the discard-free shader, only where the depth is the one the first step left. A hidden part of it is then never shaded, which is
+    // what a shader that discards could not promise.
+    if (forceClip) {
+      for (const s of this.ships) {
+        if (!s.visible) continue;
+        use(true, s);
+        pass.drawIndexed(s.indexCount);
+      }
+      return;
+    }
+    if (parts === 1) return;
+    const cut = this.ships.filter((s) => s.visible && s.needsClip && s.clipStart < s.indexCount);
+    if (cut.length === 0) return;
+    pass.setPipeline(this.depthPipeline);
+    pass.setBindGroup(0, this.depthScene);
+    pass.setBindGroup(1, this.depthEmpty);
+    for (const s of cut) {
+      pass.setBindGroup(2, s.depthGroup);
+      pass.setVertexBuffer(0, s.vertexBuffer);
+      pass.setIndexBuffer(s.indexBuffer, 'uint32');
+      pass.drawIndexed(s.indexCount - s.clipStart, 1, s.clipStart);
+    }
+    pass.setPipeline(this.equalPipeline);
+    pass.setBindGroup(0, this.equalBinds.scene);
+    pass.setBindGroup(1, this.equalBinds.env);
+    pass.setBindGroup(3, this.equalBinds.shadow);
+    for (const s of cut) {
+      pass.setBindGroup(2, s.equalGroup);
+      pass.setVertexBuffer(0, s.vertexBuffer);
+      pass.setIndexBuffer(s.indexBuffer, 'uint32');
+      pass.drawIndexed(s.indexCount - s.clipStart, 1, s.clipStart);
     }
   }
 

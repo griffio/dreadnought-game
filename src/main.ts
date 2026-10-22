@@ -2,7 +2,7 @@ import './style.css';
 import { CAMERA_PRESETS, shipToWorld } from './app/camera-presets';
 import { ChaseCamera } from './app/chase-camera';
 import { FreeCamera } from './app/free-camera';
-import { PerfSurvey } from './app/perf-survey';
+import { PerfSurvey, type Scenes } from './app/perf-survey';
 import { Campaign, type Recorded } from './campaign/campaign';
 import { missionById, playtestById, practiceById, type MissionDef } from './campaign/missions';
 import { isShipId, paintOf, shipById, type ShipId } from './data/ships/roster';
@@ -97,6 +97,8 @@ declare global {
     __oceanSelfTest?: () => ReturnType<typeof runOceanSelfTest>;
     __frames?: number;
     __survey?: import('./app/perf-survey').SurveyRow[];
+    /** The file the dev server kept the last survey report in (perf-results/...), once it has said so. */
+    __perfSent?: string;
     __gpuTiming?: () => import('./render/gpu-timer').GpuTimes | null;
   }
 }
@@ -547,33 +549,71 @@ async function boot(): Promise<void> {
       sea.fx.screenPuff(cam[0] + Math.sin(yaw) * d + Math.cos(yaw) * across, cam[2] - Math.cos(yaw) * d + Math.sin(yaw) * across, 0, 0, 45, 60, 40);
     }
   };
-  const survey = new PerfSurvey(sea, (scale) => (sizer.renderScale = scale), () => sizer.width * sizer.height, startBattle, startScreen);
-  const startSurvey = async () => {
+  // The scenes the survey puts on for a step: the ship hurt (fires on her hull, two turrets wrecked, dazzle paint), broken in two, and the
+  // wreckage and oil of one that has gone down. Each is taken off again after its step.
+  const surveyScenes: Scenes = {};
+  /** The survey is putting the sight's cutaway on the ship (without the sight). */
+  let surveyCutaway = false;
+  if (game && player) {
+    let savedDazzle = 0;
+    surveyScenes.hurt = {
+      on: () => {
+        const L = game.playerEntry.spec.hull.length;
+        const fires = Array.from({ length: 8 }, (_, i) => ({ at: [(i - 3.5) * L * 0.1, 2 + (i % 3) * 2.5, (i % 2 ? 1 : -1) * 3] as [number, number, number], intensity: 0.9 }));
+        const wreck = player.model.turrets.filter((t) => /^[A-Z]$/.test(t.id)).slice(0, 2).map((t) => t.id);
+        player.setShowcase({ fires, wreck });
+        savedDazzle = player.instance.paint.markings?.dazzle ?? 0;
+        player.instance.paint = { ...player.instance.paint, markings: { ...player.instance.paint.markings, dazzle: 7 } };
+      },
+      off: () => {
+        player.setShowcase(null);
+        player.instance.paint = { ...player.instance.paint, markings: { ...player.instance.paint.markings, dazzle: savedDazzle } };
+      },
+    };
+    surveyScenes.broken = { on: () => player.debugBreak(0, game.simTime), off: () => player.debugBreak(null, game.simTime) };
+    surveyScenes.cutaway = { on: () => (surveyCutaway = true), off: () => (surveyCutaway = false) };
+    surveyScenes.wreckage = {
+      on: () => {
+        const yaw = camera.yawDeg * (Math.PI / 180);
+        sea.fx.shipLost(camera.position[0] + Math.sin(yaw) * 400, camera.position[2] - Math.cos(yaw) * 400, game.playerEntry.spec.hull.length);
+      },
+      off: () => sea.fx.particles.clear(),
+    };
+  }
+  const survey = new PerfSurvey(sea, (scale) => (sizer.renderScale = scale), () => sizer.width * sizer.height, startBattle, startScreen, surveyScenes);
+  const startSurvey = async (only: 'all' | 'ship' = 'all') => {
     if (survey.running || probing) return;
     overlay.setSurveyRunning(true);
     overlay.resetProbeLog();
     overlay.appendProbeLog('Perf survey: do not touch the screen for about a minute.');
     try {
-      const rows = await survey.run((line) => overlay.appendProbeLog(line));
+      const rows = await survey.run((line) => overlay.appendProbeLog(line), only);
       const { adapterInfo } = gpu;
-      overlay.showProbeJson(
-        JSON.stringify(
-          {
-            when: new Date().toISOString(),
-            userAgent: navigator.userAgent,
-            adapter: { vendor: adapterInfo.vendor, architecture: adapterInfo.architecture },
-            devicePixelRatio: window.devicePixelRatio,
-            quality: { oceanSize, msaa, shadowSize },
-            // What was on screen, so that the rows can be read: the scenario and how much land was in view.
-            scenario: narrows ? 'narrows' : attack ? 'destroyers' : game ? 'duel' : 'none',
-            land: sea.landStats,
-            rows,
-          },
-          null,
-          2,
-        ),
+      const report = JSON.stringify(
+        {
+          when: new Date().toISOString(),
+          userAgent: navigator.userAgent,
+          adapter: { vendor: adapterInfo.vendor, architecture: adapterInfo.architecture },
+          devicePixelRatio: window.devicePixelRatio,
+          quality: { oceanSize, msaa, shadowSize },
+          // What was on screen, so that the rows can be read: the scenario and how much land was in view.
+          scenario: narrows ? 'narrows' : attack ? 'destroyers' : game ? 'duel' : 'none',
+          land: sea.landStats,
+          rows,
+        },
+        null,
+        2,
       );
+      overlay.showProbeJson(report);
       window.__survey = rows;
+      // The dev server keeps the report in perf-results/ (no copying out of the page); any other server just says no.
+      void fetch('/__perf', { method: 'POST', headers: { 'content-type': 'application/json' }, body: report })
+        .then(async (r) => {
+          if (!r.ok) return;
+          window.__perfSent = ((await r.json()) as { file: string }).file;
+          overlay.appendProbeLog(`\nReport sent to the dev server: ${window.__perfSent}`);
+        })
+        .catch(() => {});
     } catch (err) {
       overlay.appendProbeLog(`survey crashed: ${String(err)}`);
     } finally {
@@ -582,7 +622,8 @@ async function boot(): Promise<void> {
     }
   };
   overlay.onSurvey(() => void startSurvey());
-  if (q.has('survey')) void startSurvey();
+  // ?survey=1 is the whole survey; ?survey=ship the shorter one of the ship alone.
+  if (q.has('survey')) void startSurvey(q.get('survey') === 'ship' ? 'ship' : 'all');
 
   // ---- the replay and the shell camera ----------------------------------------------------------
   // The recorder takes a sample of the picture thirty times a second, and every call the game makes to draw a spectacle; the replay
@@ -827,7 +868,10 @@ async function boot(): Promise<void> {
         // Funnel smoke streams past the foretop where the sight is, and the cordite of a broadside hangs there: both are cleared while
         // the sight is up and come back as it goes down.
         sea.fx.showShipSmoke(!sightOwns);
-        player.instance.cutaway = sightOwns ? SIGHT_CUTAWAY_M : 0;
+        const cutting = sightOwns || surveyCutaway;
+        player.instance.cutaway = cutting ? SIGHT_CUTAWAY_M : 0;
+        // Nothing lower than the lens less the radius (and a metre for the roll of the ship) can be within reach of it.
+        player.instance.cutawayFloor = cutting ? game.directorHeight - SIGHT_CUTAWAY_M - 1 : Number.POSITIVE_INFINITY;
         if (freeCamera) freeCamera.update(dt);
         else if (!sightOwns) {
           camera.fovYDeg = baseFov;
