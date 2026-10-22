@@ -40,6 +40,8 @@ import { TorpedoHud } from './ui/torpedo-hud';
 import { TutorialHud } from './ui/tutorial-hud';
 
 const SIM_HZ = 60;
+/** The director's sight looks out of the foretop: none of her own ship nearer than this to the lens is drawn, metres. */
+const SIGHT_CUTAWAY_M = 14;
 /** Parameters that do not choose a scenario: a URL with only these opens the front door. */
 const MENU_PARAMS = new Set(['touch', 'debug', 'aniso', 'q', 'msaa', 'scale', 'shadow', 'menu']);
 
@@ -535,8 +537,10 @@ async function boot(): Promise<void> {
             baseFov,
             target ? (target as { id: number }).id : null,
           );
-        // Funnel smoke streams past the foretop where the sight is: it is cleared while the sight is up and comes back as it goes down.
-        sea.fx.showFunnelSmoke(!sightOwns);
+        // Funnel smoke streams past the foretop where the sight is, and the cordite of a broadside hangs there: both are cleared while
+        // the sight is up and come back as it goes down.
+        sea.fx.showShipSmoke(!sightOwns);
+        player.instance.cutaway = sightOwns ? SIGHT_CUTAWAY_M : 0;
         if (freeCamera) freeCamera.update(dt);
         else if (!sightOwns) {
           camera.fovYDeg = baseFov;

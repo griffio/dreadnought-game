@@ -40,6 +40,8 @@ export class ShipInstance {
   paint: ShipPaint = { ...ADMIRALTY_GREY };
   /** False once the ship has gone under: it is neither drawn nor shadowed. */
   visible = true;
+  /** Metres: none of the ship nearer the camera than this is drawn (the director's sight sits among her mast, and sees out of it). */
+  cutaway = 0;
 
   readonly vertexBuffer: GPUBuffer;
   readonly indexBuffer: GPUBuffer;
@@ -88,7 +90,7 @@ export class ShipInstance {
     d.set(this.model, 0);
     d.set(this.rig.matrices, 16);
     const o = 16 + MAX_NODES * 16;
-    d.set([...this.paint.hull, 0, ...this.paint.superstructure, 0, this.paint.wetness, this.paint.concrete ? 1 : 0, 0, 0], o);
+    d.set([...this.paint.hull, 0, ...this.paint.superstructure, 0, this.paint.wetness, this.paint.concrete ? 1 : 0, this.cutaway, 0], o);
     device.queue.writeBuffer(this.uniformBuffer, 0, d);
   }
 

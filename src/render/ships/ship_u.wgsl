@@ -4,5 +4,5 @@ struct ShipU {
   nodes: array<mat4x4<f32>, 96>,     // node space -> ship space
   hull_grey: vec4<f32>,              // rgb hull paint
   super_grey: vec4<f32>,             // rgb upperworks paint
-  misc: vec4<f32>,                   // x wetness, y concrete (a fort: the deck is poured concrete), z unused, w unused
+  misc: vec4<f32>,                   // x wetness, y concrete (a fort: the deck is poured concrete), z cutaway radius (m; 0 = none), w unused
 };

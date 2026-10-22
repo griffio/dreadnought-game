@@ -221,6 +221,10 @@ fn ggx_specular(n: vec3<f32>, v: vec3<f32>, l: vec3<f32>, rough: f32, f0: vec3<f
 
 @fragment
 fn fs(in: VOut) -> @location(0) vec4<f32> {
+  // The director's sight sits among the legs of the mast and sees out of it: nothing of the ship that close to the lens is drawn.
+  if (ship.misc.z > 0.0 && length(in.rel) < ship.misc.z) {
+    discard;
+  }
   let v = normalize(-in.rel);
   var n = normalize(in.nrm);
   if (dot(n, v) < 0.0) {

@@ -13,7 +13,7 @@ async function framesLater(page: Page, count: number): Promise<void> {
 
 const particles = (page: Page) => page.evaluate(() => ({ active: window.__sea!.fx.particles.active, drawn: window.__sea!.fx.particles.drawn }));
 
-test('funnel smoke: drawn from the chase camera, cleared from the director’s sight, and gun smoke still shows in it', async ({ page }) => {
+test('ship smoke: funnel smoke and cordite show from the chase camera and are cleared from the director’s sight, where the flash still shows', async ({ page }) => {
   test.setTimeout(180_000);
   const problems: string[] = [];
   page.on('console', (m) => m.type() === 'error' && problems.push(m.text()));
@@ -40,12 +40,25 @@ test('funnel smoke: drawn from the chase camera, cleared from the director’s s
   expect(sight.drawn).toBe(0);
   await page.screenshot({ path: 'test-results/funnel-smoke-sight.png' });
 
-  // A salvo's own smoke and flash are not funnel smoke: they still show in the sight.
+  // A salvo throws cordite (cleared with the funnel smoke) and a flash and sparks (not): in the sight only the flash shows.
   await page.evaluate(() => window.__player!.fire());
-  await framesLater(page, 6);
-  const fired = await particles(page);
-  expect(fired.drawn).toBeGreaterThan(5);
-  expect(fired.drawn).toBeLessThan(fired.active);
+  await expect
+    .poll(async () => {
+      const p = await particles(page);
+      return p.drawn > 5 && p.drawn < p.active;
+    }, { timeout: 10_000 })
+    .toBe(true);
+
+  // From the chase camera the same salvo's cordite is all there to see.
+  await page.goto('/?scenario=duel&player=queen-elizabeth&foe=kaiser&trange=9&passive=1&tspd=14&tcrs=0&tele=3&tscale=10&gseed=3&scale=0.5');
+  await waitForFrames(page, 10);
+  await page.evaluate(() => window.__player!.fire());
+  await expect
+    .poll(async () => {
+      const p = await particles(page);
+      return p.drawn === p.active && p.drawn > 40;
+    }, { timeout: 10_000 })
+    .toBe(true);
   expect(await page.evaluate(() => window.__gpuErrors ?? [])).toEqual([]);
   expect(problems).toEqual([]);
 });

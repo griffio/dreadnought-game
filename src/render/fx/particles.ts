@@ -16,6 +16,7 @@ export const GLOW = 1;
 /** Groups of particles that can be switched off together: the default layer is always drawn. */
 export const LAYER_DEFAULT = 0;
 export const LAYER_FUNNEL = 1;
+export const LAYER_GUNSMOKE = 2;
 const LAYERS = 4;
 /** How quickly a layer fades out or back in, per second. */
 const LAYER_FADE_RATE = 3;

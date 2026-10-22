@@ -1,5 +1,5 @@
 import { Rng } from '../../sim/rng';
-import { GLOW, LAYER_FUNNEL, PUFF, type ParticleSystem } from './particles';
+import { GLOW, LAYER_FUNNEL, LAYER_GUNSMOKE, PUFF, type ParticleSystem } from './particles';
 
 type V3 = readonly [number, number, number];
 
@@ -86,6 +86,7 @@ export class Effects {
         spin: this.g() * 0.15,
         fadeIn: 0.12,
         fadePow: 1.5,
+        layer: LAYER_GUNSMOKE,
       });
     }
   }
@@ -273,9 +274,13 @@ export class Effects {
     });
   }
 
-  /** Funnel smoke shows or fades away (the director's sight looks through the place where it streams). */
-  showFunnelSmoke(on: boolean): void {
+  /**
+   * The smoke a ship makes of herself, her funnels' and her guns' cordite, shows or fades away. The director's sight looks through
+   * the place where it streams and hangs, so it is cleared there; the muzzle flash, the splashes and the bursts still show.
+   */
+  showShipSmoke(on: boolean): void {
     this.particles.setLayerVisible(LAYER_FUNNEL, on);
+    this.particles.setLayerVisible(LAYER_GUNSMOKE, on);
   }
 
   /** One puff of black smoke from a fire aboard. `intensity` (0..1) is how fierce the fire is. */
