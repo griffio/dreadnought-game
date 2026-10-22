@@ -4,3 +4,8 @@ dist
 .DS_Store
 test-results
 playwright-report
+
+# Secrets: API keys for the asset tools. Never commit them.
+.env
+.env.*
+!.env.example
