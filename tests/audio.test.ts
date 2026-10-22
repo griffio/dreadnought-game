@@ -374,18 +374,24 @@ describe('settings', () => {
   const store = (v: string | null) => ({ getItem: () => v });
 
   it('starts with sound on at a sensible level', () => {
-    expect(loadSettings(store(null))).toEqual({ muted: false, volume: 0.8 });
-    expect(loadSettings(null)).toEqual({ muted: false, volume: 0.8 });
+    expect(loadSettings(store(null))).toEqual({ muted: false, volume: 0.8, voices: true });
+    expect(loadSettings(null)).toEqual({ muted: false, volume: 0.8, voices: true });
   });
 
   it('remembers what was chosen', () => {
-    expect(loadSettings(store(JSON.stringify({ muted: true, volume: 0.3 })))).toEqual({ muted: true, volume: 0.3 });
+    expect(loadSettings(store(JSON.stringify({ muted: true, volume: 0.3 })))).toEqual({ muted: true, volume: 0.3, voices: true });
+  });
+
+  it('remembers that the voices were turned off, and that only the voices were', () => {
+    const s = loadSettings(store(JSON.stringify({ muted: false, volume: 0.5, voices: false })));
+    expect(s.voices).toBe(false);
+    expect(s.muted).toBe(false);
   });
 
   it('survives rubbish and keeps the volume in range', () => {
-    expect(loadSettings(store('not json'))).toEqual({ muted: false, volume: 0.8 });
+    expect(loadSettings(store('not json'))).toEqual({ muted: false, volume: 0.8, voices: true });
     expect(loadSettings(store(JSON.stringify({ volume: 9 }))).volume).toBe(1);
     expect(loadSettings(store(JSON.stringify({ volume: -2 }))).volume).toBe(0);
-    expect(loadSettings({ getItem: () => { throw new Error('blocked'); } })).toEqual({ muted: false, volume: 0.8 });
+    expect(loadSettings({ getItem: () => { throw new Error('blocked'); } })).toEqual({ muted: false, volume: 0.8, voices: true });
   });
 });

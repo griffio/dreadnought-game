@@ -30,6 +30,7 @@ import { ReplayPlayer, ReplayRecorder, type ReplayTarget } from './app/replay';
 import { AudioDirector } from './audio/director';
 import { AudioEngine } from './audio/engine';
 import { tapEffects } from './audio/tap';
+import { VoiceDirector } from './audio/voice';
 import { ReplayCamera, ShellCamera, type ReplayCameraMode } from './app/shell-camera';
 import { ReplayHud } from './ui/replay-hud';
 import type { WakeSample } from './sim/ships/wake';
@@ -86,6 +87,7 @@ declare global {
     __game?: Game;
     __audio?: AudioEngine;
     __director?: () => AudioDirector | null;
+    __voice?: () => VoiceDirector | null;
     __sight?: SightCamera;
     __camera?: Camera;
     __campaign?: Campaign;
@@ -241,6 +243,9 @@ async function boot(): Promise<void> {
   // the beds underneath. Browsers keep audio shut until the page is touched, so the engine starts at the first tap or key.
   const audio = new AudioEngine();
   let director: AudioDirector | null = null;
+  /** The crew's voices: they speak seldom, and what they say is also put in the log if the log does not already say it. */
+  let voices: VoiceDirector | null = null;
+  const ROLE_NAMES: Record<string, string> = { lookout: 'LOOKOUT', gunnery: 'GUNNERY OFFICER', damage: 'DAMAGE CONTROL', wireless: 'WIRELESS' };
   /** True while a replay rebuilds the smoke of the moments before the one sought: those calls are drawn, not heard. */
   let rebuilding = false;
   let audioHeld = false;
@@ -252,10 +257,17 @@ async function boot(): Promise<void> {
   if (game) {
     window.__audio = audio;
     window.__director = () => director;
+    window.__voice = () => voices;
+    game.onVoice = (key) => void voices?.cue(key);
     audio
       .fetch()
       .then((ids) => {
         director = new AudioDirector(audio, ids);
+        voices = new VoiceDirector(audio, ids, Math.random, (line) => {
+          if (!line.caption) return;
+          const said = audio.describe(line.id);
+          if (said.text) game.messages.push('info', `${ROLE_NAMES[said.role ?? ''] ?? 'CREW'}: "${said.text}"`, game.simTime);
+        });
         tapEffects(sea.fx, (name, args) => {
           if (!rebuilding) director?.onEffect(name, args);
         });
@@ -415,6 +427,7 @@ async function boot(): Promise<void> {
         audio.setMuted(!on);
         gunWidgets?.setSound(!on);
       }, !audio.muted);
+      controls.addToggle('Crew voices', (on) => audio.setVoices(on), audio.voicesOn);
     }
     controls.addToggle('Sweep turrets', (on) => (player.sweep = on));
     controls.addToggle('Wheel returns to midships (touch)', (on) => (widgets.autoCenter = on), true);
@@ -713,6 +726,8 @@ async function boot(): Promise<void> {
     const frameMs = now - last;
     const dt = Math.min(Math.max(frameMs / 1000, 0), 0.1);
     last = now;
+
+    voices?.update(paused ? 0 : dt);
 
     if (wantReplay !== null) {
       enterReplay(wantReplay);

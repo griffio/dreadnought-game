@@ -468,6 +468,11 @@ export class Gunnery {
     };
   }
 
+  /** Can the ship herself see this contact (not by the aircraft's eye): above the horizon and not lost in smoke? */
+  canSee(ship: ShipFrame, c: Contact): boolean {
+    return this.isVisible(ship, c).visible;
+  }
+
   /** Can the fall of shot about this contact be seen: from the ship, or from the air? */
   private observes(ship: ShipFrame, c: Contact): boolean {
     return this.isVisible(ship, c).visible || (this.aerial?.sees(c) ?? false);

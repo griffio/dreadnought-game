@@ -251,6 +251,11 @@ export class Game {
   private mineHits = 0;
   private minesCalled = 0;
   private lastGroundedCall = Number.NEGATIVE_INFINITY;
+  /** The crew's calls: the voices are made of these (see src/audio/voice.ts for what each is). */
+  onVoice?: (key: string) => void;
+  private readonly sighted = new Set<EnemyShip>();
+  private readonly fireCalled = new Set<Combatant>();
+  private lastSightCheck = Number.NEGATIVE_INFINITY;
 
   constructor(
     private readonly sea: SeaRenderer,
@@ -555,7 +560,10 @@ export class Game {
       }
     };
     c.onShellEvent = (e: ShellEvent) => this.shellEvent(e);
-    c.onHitMark = (mark) => this.actorOf(c).markHit(mark, this.simTime);
+    c.onHitMark = (mark) => {
+      this.actorOf(c).markHit(mark, this.simTime);
+      if (ours && mark.kind === 'burst') this.cue('hit-taken');
+    };
     if (ours) {
       c.onReport = (r: SalvoReport, unit: BatteryUnit) => {
         // The self-directing 12-pounders only report what they hit: their misses would drown the main battery's calls.
@@ -564,6 +572,8 @@ export class Game {
           return;
         }
         this.say(r.call === 'HIT' ? 'good' : 'info', r.text);
+        if (r.call === 'HIT') this.cue('hit');
+        else if (r.call === 'STRADDLE') this.cue('straddle');
       };
     }
     c.onTorpedoLaunch = (t: Torpedo) => this.torpedoLaunched(c, t);
@@ -577,6 +587,7 @@ export class Game {
       if (this.simTime - lastCall > 40) {
         lastCall = this.simTime;
         this.say('warn', `${fort.name} has opened fire.`);
+        this.cue('battery-fired');
       }
     };
     fort.onShellEvent = (e) => this.shellEvent(e);
@@ -585,6 +596,24 @@ export class Game {
 
   private say(tone: MessageTone, text: string): void {
     this.messages.push(tone, text, this.simTime);
+  }
+
+  /** A call from the crew, for the voices. */
+  private cue(key: string): void {
+    this.onVoice?.(key);
+  }
+
+  /** The lookout calls each enemy ship the first time she is seen over the horizon. */
+  private callSightings(): void {
+    if (this.practice || this.simTime - this.lastSightCheck < 1) return;
+    this.lastSightCheck = this.simTime;
+    for (const e of this.enemies) {
+      if (e.finished || this.sighted.has(e)) continue;
+      if (this.gunnery.canSee(this.player.frame, e.combatant)) {
+        this.sighted.add(e);
+        this.cue('sighted');
+      }
+    }
   }
 
   private shellEvent(e: ShellEvent): void {
@@ -626,6 +655,7 @@ export class Game {
     if (this.simTime - (this.lastLaunchCall.get(c) ?? -99) < 4) return;
     this.lastLaunchCall.set(c, this.simTime);
     const bearing = (Math.atan2(c.x - p.x, -(c.z - p.z)) / DEG + 360) % 360;
+    this.cue('enemy-torpedoes');
     this.say('alert', `${c.name} has fired torpedoes! Bearing ${this.bearingText(bearing)}, ${Math.round(range / 10) * 10} m.`);
   }
 
@@ -640,9 +670,11 @@ export class Game {
         const bearing = (Math.atan2(e.torpedo.x - p.x, -(e.torpedo.z - p.z)) / DEG + 360) % 360;
         const rel = ((bearing - p.heading / DEG + 540) % 360) - 180;
         const side = rel >= 0 ? `${Math.round(rel)} off the starboard bow` : `${Math.round(-rel)} off the port bow`;
+        this.cue(Math.abs(rel) < 15 ? 'torpedo-ahead' : rel >= 0 ? (rel <= 90 ? 'torpedo-stbd-bow' : 'torpedo-stbd-quarter') : rel >= -90 ? 'torpedo-port-bow' : 'torpedo-port-quarter');
         this.say('critical', `Torpedo wake! Bearing ${this.bearingText(bearing)}, ${Math.round(e.range / 10) * 10} m.${Math.abs(rel) > 90 ? '' : ` ${side}.`}`);
       } else if (e.kind === 'passed-under' && e.targetId === PLAYER_ID) {
         this.say('good', 'A torpedo has run under the keel!');
+        this.cue('torpedo-passed');
       }
     }
   }
@@ -919,6 +951,7 @@ export class Game {
 
     for (const c of this.combatants()) this.collectReports(c);
     this.judge();
+    this.callSightings();
   }
 
   /** Running aground: the shoal stops her where she is, and a strike at speed opens her bottom. */
@@ -934,6 +967,7 @@ export class Game {
     if (g.grounded && this.simTime - this.lastGroundedCall > 25) {
       this.lastGroundedCall = this.simTime;
       this.say('alert', 'We are aground! Go astern to get her off.');
+      this.cue('aground');
     }
   }
 
@@ -954,6 +988,7 @@ export class Game {
           this.foundForts.add(fort);
           const p = this.playerCombatant;
           const bearing = (Math.atan2(fort.x - p.x, -(fort.z - p.z)) / DEG + 360) % 360;
+          this.cue('fort-found');
           this.say('good', `Spotter: ${fort.name} found, bearing ${this.bearingText(bearing)}, ${Math.round(Math.hypot(fort.x - p.x, fort.z - p.z) / 10) * 10} m.`);
         }
       }
@@ -966,12 +1001,14 @@ export class Game {
       if (fort.silenced && !this.silencedCalled.has(fort)) {
         this.silencedCalled.add(fort);
         const left = this.forts.filter((f) => !f.silenced).length;
+        this.cue('battery-silenced');
         this.say('good', `${fort.name} is silenced.${left > 0 ? ` ${left} battery${left === 1 ? '' : 'ies'} still firing.` : ''}`.replace('batteryies', 'batteries'));
       }
       // A hidden battery gives itself away by the flash of its guns.
       if (fort.spec.hidden && fort.revealed(now) && !this.foundForts.has(fort) && fort.shellsFired > 0) {
         this.foundForts.add(fort);
         this.say('alert', `${fort.name}: guns flash behind the ridge!`);
+        this.cue('battery-flash');
       }
     }
     if (this.mines) {
@@ -984,6 +1021,7 @@ export class Game {
 
   private mineSighted(count: number): void {
     this.minesCalled += count;
+    this.cue('mines');
     this.say('warn', `Spotter: mines sighted below us. ${this.minesCalled} marked on the chart.`);
   }
 
@@ -992,11 +1030,15 @@ export class Game {
     const plane = this.plane;
     if (!plane) return;
     if (plane.state === 'deck') {
-      if (plane.launch()) this.say('info', 'Spotter aircraft is being hoisted out.');
+      if (plane.launch()) {
+        this.say('info', 'Spotter aircraft is being hoisted out.');
+        this.cue('airborne');
+      }
       else this.say('warn', 'The aircraft is being readied: a few minutes before it can go up again.');
     } else if (plane.state === 'flying' || plane.state === 'launching') {
       plane.recall();
       this.say('info', 'Spotter recalled.');
+      this.cue('returning');
     }
   }
 
@@ -1028,6 +1070,7 @@ export class Game {
   private report(r: ShipReport, ours: boolean, name: string): void {
     const tone: MessageTone = r.tone === 'critical' ? 'critical' : r.tone === 'alert' ? 'alert' : r.tone === 'warn' ? 'warn' : 'info';
     this.say(tone, ours ? r.text : `${name}: ${r.text.replace(/\bour\b/g, 'her')}`);
+    if (ours && r.cue) this.cue(r.cue);
   }
 
   /** Decide whether the fight is over. */
@@ -1055,6 +1098,7 @@ export class Game {
       else if (status === 'sinking' || status === 'sunk') this.say('good', `${name} is sinking.`);
       else if (status === 'crippled') this.say('good', `${name} is disabled! She cannot fight on.`);
       else this.say('good', `${name} has broken off the attack.`);
+      this.cue(status === 'struck' ? 'enemy-struck' : status === 'exploded' ? 'enemy-blown' : status === 'sinking' || status === 'sunk' ? 'enemy-sinking' : status === 'crippled' ? 'enemy-disabled' : 'enemy-broke-off');
     }
     if (!this.enemies.every((e) => e.finished)) {
       this.beatenAt = null;
@@ -1291,11 +1335,16 @@ export class Game {
         fx.explosion(w[0], w[1], w[2], c.cfg.ship.hull.length / 160);
       } else if (status === 'sinking' && before !== undefined) {
         this.say('critical', c === this.playerCombatant ? 'We are sinking!' : `${c.name} is going down.`);
+        if (c === this.playerCombatant) this.cue('sinking');
       }
     }
     if (status === 'sunk') return;
 
     const sites = dmg.fireSites();
+    if (sites.length > 0 && c !== this.playerCombatant && !this.fireCalled.has(c)) {
+      this.fireCalled.add(c);
+      this.cue('enemy-fire');
+    }
     if (sites.length === 0 && status !== 'exploded') return;
     const clock = (this.fireClock.get(actor) ?? 0) + dt;
     const step = 0.16;

@@ -295,5 +295,15 @@
     "loop": true,
     "model": "eleven_text_to_sound_v2",
     "when": "2026-10-22T16:03:15.852Z"
+  },
+  {
+    "id": "shell-whistle-2",
+    "text": "A large naval shell falling from the sky, a low descending rushing roar with fluttering tearing air, getting louder as it nears and ending abruptly, nothing mechanical and nothing squealing",
+    "duration": 3,
+    "influence": 0.7,
+    "loop": false,
+    "model": "eleven_text_to_sound_v2",
+    "when": "2026-10-22T17:22:15.058132+00:00",
+    "note": "remade: the first take sounded like a tyre skid (tonal squeal); chosen of three by spectral flatness"
   }
 ]

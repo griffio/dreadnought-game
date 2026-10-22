@@ -11,7 +11,7 @@
     { "id": "gun-distant-1", "duration": 5, "influence": 0.6, "text": "A distant naval gun boom heard from many miles away across the sea, a low muffled rumble rolling in, nothing close" },
     { "id": "gun-distant-2", "duration": 5, "influence": 0.6, "text": "Far-off battleship gunfire, a deep soft thud and a long low rumble of echo over open water" },
     { "id": "shell-whistle-1", "duration": 3, "influence": 0.6, "text": "A heavy artillery shell screaming and whistling overhead as it passes close, doppler shift, then fading away" },
-    { "id": "shell-whistle-2", "duration": 3, "influence": 0.6, "text": "A large incoming naval shell with a rising shriek, a rushing roar as it passes overhead and falls away" },
+    { "id": "shell-whistle-2", "duration": 3, "influence": 0.7, "text": "A large naval shell falling from the sky, a low descending rushing roar with fluttering tearing air, getting louder as it nears and ending abruptly, nothing mechanical and nothing squealing" },
     { "id": "hit-clang-1", "duration": 2.5, "influence": 0.6, "text": "A heavy armour-piercing shell striking thick steel armour plate, a loud ringing metallic clang and shattering" },
     { "id": "hit-clang-2", "duration": 2.5, "influence": 0.6, "text": "A massive shell slamming into a steel ship's hull, a deep metallic crash and a ringing reverberation" },
     { "id": "hit-ricochet-1", "duration": 1.5, "influence": 0.7, "text": "A shell glancing off steel armour, a high whining ricochet ping" },

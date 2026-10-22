@@ -29,4 +29,17 @@ python3 tools/process-textures.py       # the chosen pictures -> public/textures
 
 ## Voices
 
-`tools/lib/elevenlabs.mjs` (`speak`) and `tools/smoke-assets.mjs` (a three-line trial; its outputs, in `assets-src/smoke/`, are ignored).
+```
+node tools/voices.mjs [id ...]          # the lines in tools/voice-lines.json not yet made -> assets-src/voices/raw/, logged in provenance.json
+python3 tools/process-voices.py         # raw lines -> filtered AAC in public/audio/voices/ (+ manifest.json, CREDITS.md)
+```
+
+- Four premade British ElevenLabs voices, one per role: Daniel (lookout), George (gunnery officer), Alice (damage control), Lily (wireless:
+  the spotter aircraft). `tools/voice-lines.json` holds the roles (voice, delivery, filter) and every line; a line's key is its id without
+  the number, and `src/audio/voice.ts` says when each key is spoken (its priority, cooldown and whether it is put in the log).
+- The filters are the point: `telephone` (masthead telephone), `pipe` (voice-pipe: tinny, with a metallic ring) and `wireless` (narrow,
+  fluttering, hissing), the last two with the click of the key. Change a profile in `process-voices.py` and run it again; no new speech is needed.
+- To change a line: edit its text in the JSON, delete `assets-src/voices/raw/<id>.mp3`, run both scripts. Whole script is about 1,400 characters.
+- Add a new call: add lines (`voice-<key>-1`...), add the key to `VOICE_RULES` in `src/audio/voice.ts`, and cue it from the game with
+  `this.cue('<key>')` (`tests/voice.test.ts` checks that the rules, the lines and the game's calls agree).
+- `tools/smoke-assets.mjs` is the old three-line trial (its outputs, in `assets-src/smoke/`, are ignored).

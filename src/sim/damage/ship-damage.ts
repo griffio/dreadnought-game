@@ -11,6 +11,8 @@ export interface DamageReport {
   text: string;
   /** Where it happened, ship space (for effects and for pointing the camera). */
   at?: V3;
+  /** The crew's call that goes with it, when it has one (a voice line family: 'fire', 'flooding'...). */
+  cue?: string;
 }
 
 export interface ShellDamageData {
@@ -319,8 +321,8 @@ export class ShipDamage {
     return r;
   }
 
-  private report(tone: ReportTone, text: string, at?: V3): void {
-    this.reports.push({ tone, text, at });
+  private report(tone: ReportTone, text: string, at?: V3, cue?: string): void {
+    this.reports.push({ tone, text, at, cue });
   }
 
   // ---- hits ------------------------------------------------------------------------------------
@@ -467,7 +469,7 @@ export class ShipDamage {
       const area = TUNING.holeAreaPerCaliber * (shell.diameterMm / 1000) ** 2 * (0.6 + sev0);
       this.holes.push({ comp: idx, area, y: entry[1], side: Math.sign(entry[2]) || 1 });
       const c = this.comps[idx]!;
-      this.report('critical', `Holed below the waterline in the ${plain(c.spec.name)}. Flooding.`, entry);
+      this.report('critical', `Holed below the waterline in the ${plain(c.spec.name)}. Flooding.`, entry, 'flooding');
     } else {
       const c = this.comps[primary >= 0 ? primary : this.compIndexAtX(at[0])]!;
       this.report('alert', `Hit in the ${plain(c.spec.name)}.`, at);
@@ -517,7 +519,7 @@ export class ShipDamage {
     const area = TUNING.torpedoHole * (1 - 0.5 * protection);
     this.holes.push({ comp: primary, area, y: -hit.depth, side: hit.side });
     this.torpedoHits++;
-    this.report('critical', `${hit.cause === 'mine' ? 'We have struck a mine!' : 'Torpedo hit!'} The ${plain(this.comps[primary]!.spec.name)} is holed and flooding.`, at);
+    this.report('critical', `${hit.cause === 'mine' ? 'We have struck a mine!' : 'Torpedo hit!'} The ${plain(this.comps[primary]!.spec.name)} is holed and flooding.`, at, 'flooding');
   }
 
   private damageCompartment(i: number, sev: number, primary: boolean, at: V3): void {
@@ -529,7 +531,7 @@ export class ShipDamage {
     if (this.rng.next() < pFire) {
       const was = c.fire;
       c.fire = clamp(c.fire + 0.25 + 0.4 * sev, 0, 1);
-      if (was < 0.05) this.report('alert', `Fire in the ${plain(c.spec.name)}.`, at);
+      if (was < 0.05) this.report('alert', `Fire in the ${plain(c.spec.name)}.`, at, 'fire');
     }
     if (role === 'magazine') {
       c.heat = clamp(c.heat + 0.35 * sev * (1 - this.spec.flashProtection), 0, 2);
@@ -548,7 +550,7 @@ export class ShipDamage {
     t.fire = clamp(t.fire + 0.5, 0, 1);
     if (this.rng.next() < clamp(0.45 + 0.4 * sev0, 0, 0.95)) {
       t.state = 'destroyed';
-      this.report('critical', `Turret ${id} is wrecked and out of action!`, at);
+      this.report('critical', `Turret ${id} is wrecked and out of action!`, at, 'turret-out');
     } else {
       t.state = 'jammed';
       t.jamTimer = TUNING.turretJamSeconds;
@@ -591,7 +593,7 @@ export class ShipDamage {
   private failSteering(): void {
     this.steeringFailed = true;
     this.steeringRepair = TUNING.steeringRepairSeconds;
-    this.report('critical', 'The steering gear is wrecked: the rudder is jammed.');
+    this.report('critical', 'The steering gear is wrecked: the rudder is jammed.', undefined, 'steering');
   }
 
   /** Begin the fight already hurt: see `Wounds`. */

@@ -1,0 +1,295 @@
+{
+ "_comment": "The crew's voice lines. tools/voices.mjs makes any that are missing with ElevenLabs text to speech (model eleven_multilingual_v2) into assets-src/voices/raw/; tools/process-voices.py puts each over its role's radio or voice-pipe filter and writes public/audio/voices/. A line's key is its id without the number; src/audio/voice.ts says when each key is spoken.",
+ "roles": {
+  "lookout": {
+   "title": "Lookout (masthead telephone)",
+   "voice": "Daniel",
+   "stability": 0.32,
+   "style": 0.5,
+   "filter": "telephone"
+  },
+  "gunnery": {
+   "title": "Gunnery officer (voice-pipe)",
+   "voice": "George",
+   "stability": 0.38,
+   "style": 0.45,
+   "filter": "pipe"
+  },
+  "damage": {
+   "title": "Damage control (voice-pipe)",
+   "voice": "Alice",
+   "stability": 0.34,
+   "style": 0.5,
+   "filter": "pipe"
+  },
+  "wireless": {
+   "title": "Wireless office (aircraft and spotters)",
+   "voice": "Lily",
+   "stability": 0.5,
+   "style": 0.25,
+   "filter": "wireless"
+  }
+ },
+ "lines": [
+  {
+   "id": "voice-torpedo-ahead-1",
+   "role": "lookout",
+   "text": "Torpedo wake, dead ahead!"
+  },
+  {
+   "id": "voice-torpedo-port-bow-1",
+   "role": "lookout",
+   "text": "Torpedo wake, port bow!"
+  },
+  {
+   "id": "voice-torpedo-port-bow-2",
+   "role": "lookout",
+   "text": "Torpedo track on the port bow!"
+  },
+  {
+   "id": "voice-torpedo-stbd-bow-1",
+   "role": "lookout",
+   "text": "Torpedo wake, starboard bow!"
+  },
+  {
+   "id": "voice-torpedo-stbd-bow-2",
+   "role": "lookout",
+   "text": "Torpedo track on the starboard bow!"
+  },
+  {
+   "id": "voice-torpedo-port-quarter-1",
+   "role": "lookout",
+   "text": "Torpedo wake, port quarter!"
+  },
+  {
+   "id": "voice-torpedo-stbd-quarter-1",
+   "role": "lookout",
+   "text": "Torpedo wake, starboard quarter!"
+  },
+  {
+   "id": "voice-enemy-torpedoes-1",
+   "role": "lookout",
+   "text": "Enemy has fired torpedoes!"
+  },
+  {
+   "id": "voice-enemy-torpedoes-2",
+   "role": "lookout",
+   "text": "She's fired torpedoes! Look out!"
+  },
+  {
+   "id": "voice-torpedo-passed-1",
+   "role": "lookout",
+   "text": "Torpedo's run under the keel!"
+  },
+  {
+   "id": "voice-torpedo-passed-2",
+   "role": "lookout",
+   "text": "That one passed beneath us!"
+  },
+  {
+   "id": "voice-sighted-1",
+   "role": "lookout",
+   "text": "Smoke on the horizon!"
+  },
+  {
+   "id": "voice-sighted-2",
+   "role": "lookout",
+   "text": "Enemy ship in sight!"
+  },
+  {
+   "id": "voice-aground-1",
+   "role": "lookout",
+   "text": "We're aground, sir! Go astern!"
+  },
+  {
+   "id": "voice-aground-2",
+   "role": "lookout",
+   "text": "She's touched bottom! We're aground!"
+  },
+  {
+   "id": "voice-hit-1",
+   "role": "gunnery",
+   "text": "Hit! We've hit her!"
+  },
+  {
+   "id": "voice-hit-2",
+   "role": "gunnery",
+   "text": "A hit, sir!"
+  },
+  {
+   "id": "voice-hit-3",
+   "role": "gunnery",
+   "text": "Direct hit!"
+  },
+  {
+   "id": "voice-straddle-1",
+   "role": "gunnery",
+   "text": "Straddle! Straddle!"
+  },
+  {
+   "id": "voice-straddle-2",
+   "role": "gunnery",
+   "text": "We've straddled her, sir!"
+  },
+  {
+   "id": "voice-enemy-fire-1",
+   "role": "gunnery",
+   "text": "She's on fire!"
+  },
+  {
+   "id": "voice-enemy-fire-2",
+   "role": "gunnery",
+   "text": "Fire aboard the enemy!"
+  },
+  {
+   "id": "voice-enemy-blown-1",
+   "role": "gunnery",
+   "text": "Magazine! She's blown up!"
+  },
+  {
+   "id": "voice-enemy-blown-2",
+   "role": "gunnery",
+   "text": "She's gone! A magazine explosion!"
+  },
+  {
+   "id": "voice-enemy-sinking-1",
+   "role": "gunnery",
+   "text": "She's going down!"
+  },
+  {
+   "id": "voice-enemy-sinking-2",
+   "role": "gunnery",
+   "text": "Enemy ship is sinking, sir."
+  },
+  {
+   "id": "voice-enemy-struck-1",
+   "role": "gunnery",
+   "text": "She's struck her colours! Cease fire!"
+  },
+  {
+   "id": "voice-enemy-struck-2",
+   "role": "gunnery",
+   "text": "Enemy has struck. Cease fire, cease fire!"
+  },
+  {
+   "id": "voice-enemy-disabled-1",
+   "role": "gunnery",
+   "text": "She's crippled, sir. She can't fight on."
+  },
+  {
+   "id": "voice-enemy-broke-off-1",
+   "role": "gunnery",
+   "text": "The enemy is breaking off!"
+  },
+  {
+   "id": "voice-battery-silenced-1",
+   "role": "gunnery",
+   "text": "Battery silenced!"
+  },
+  {
+   "id": "voice-battery-silenced-2",
+   "role": "gunnery",
+   "text": "Their guns have stopped, sir."
+  },
+  {
+   "id": "voice-battery-fired-1",
+   "role": "gunnery",
+   "text": "Shore battery has opened fire!"
+  },
+  {
+   "id": "voice-battery-flash-1",
+   "role": "gunnery",
+   "text": "Guns flashing behind the ridge!"
+  },
+  {
+   "id": "voice-hit-taken-1",
+   "role": "damage",
+   "text": "We've been hit, sir!"
+  },
+  {
+   "id": "voice-hit-taken-2",
+   "role": "damage",
+   "text": "Struck by a shell, sir!"
+  },
+  {
+   "id": "voice-hit-taken-3",
+   "role": "damage",
+   "text": "Hit! Report damage!"
+  },
+  {
+   "id": "voice-fire-1",
+   "role": "damage",
+   "text": "Fire aboard! Fire parties turn out!"
+  },
+  {
+   "id": "voice-fire-2",
+   "role": "damage",
+   "text": "Fire in the ship, sir!"
+  },
+  {
+   "id": "voice-flooding-1",
+   "role": "damage",
+   "text": "We're taking on water!"
+  },
+  {
+   "id": "voice-flooding-2",
+   "role": "damage",
+   "text": "Flooding, sir. Pumps are running."
+  },
+  {
+   "id": "voice-turret-out-1",
+   "role": "damage",
+   "text": "Turret out of action!"
+  },
+  {
+   "id": "voice-turret-out-2",
+   "role": "damage",
+   "text": "We've lost a turret, sir."
+  },
+  {
+   "id": "voice-steering-1",
+   "role": "damage",
+   "text": "Steering gear's gone, sir. The rudder's jammed!"
+  },
+  {
+   "id": "voice-sinking-1",
+   "role": "damage",
+   "text": "She's going down! Abandon ship!"
+  },
+  {
+   "id": "voice-sinking-2",
+   "role": "damage",
+   "text": "We can't hold her, sir. Abandon ship!"
+  },
+  {
+   "id": "voice-airborne-1",
+   "role": "wireless",
+   "text": "Aircraft is airborne."
+  },
+  {
+   "id": "voice-airborne-2",
+   "role": "wireless",
+   "text": "Spotter is up, sir."
+  },
+  {
+   "id": "voice-fort-found-1",
+   "role": "wireless",
+   "text": "I have the battery in sight."
+  },
+  {
+   "id": "voice-fort-found-2",
+   "role": "wireless",
+   "text": "Battery located, sir."
+  },
+  {
+   "id": "voice-mines-1",
+   "role": "wireless",
+   "text": "Mines below us! Marking them on the chart."
+  },
+  {
+   "id": "voice-returning-1",
+   "role": "wireless",
+   "text": "Aircraft returning to the ship."
+  }
+ ]
+}

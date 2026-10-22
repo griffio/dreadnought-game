@@ -25,8 +25,8 @@ export interface LoopHandle {
 export interface AudioOut {
   play(id: string, o?: PlayOptions): void;
   loop(id: string, o?: PlayOptions): LoopHandle;
-  /** Pull the ambience down by a fraction for a moment: a heavy gun has fired. */
-  duck(amount: number, seconds: number): void;
+  /** Pull a bus (the ambience, unless another is named) down by a fraction for a moment: a heavy gun has fired. */
+  duck(amount: number, seconds: number, bus?: Bus): void;
   /** Whether a sound can be played now (the page has been touched and it is decoded). Without it every sound is taken to be ready. */
   ready?(id: string): boolean;
 }

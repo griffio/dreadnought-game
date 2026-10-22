@@ -5,6 +5,9 @@ interface Entry {
   duration: number;
   bus: Bus;
   loop: boolean;
+  /** For a voice line: who says it and the words, for the log. */
+  role?: string;
+  text?: string;
 }
 
 export interface Manifest {
@@ -15,22 +18,27 @@ export interface AudioSettings {
   muted: boolean;
   /** 0..1 */
   volume: number;
+  /** The crew's voices (everything else is unaffected). */
+  voices: boolean;
 }
 
 const STORAGE_KEY = 'fall-of-shot.audio';
-const DEFAULTS: AudioSettings = { muted: false, volume: 0.8 };
+const DEFAULTS: AudioSettings = { muted: false, volume: 0.8, voices: true };
 /** No more one-shots than this sound at once: a long engagement would otherwise swamp the mixer on an iPad. */
 const MAX_VOICES = 40;
 
 /** The bus levels: the ambience sits under the guns, and a voice over both. */
-const BUS_GAIN: Record<Bus, number> = { sfx: 1, ambience: 0.55, voice: 1 };
+const BUS_GAIN: Record<Bus, number> = { sfx: 1, ambience: 0.55, voice: 0.85 };
+
+/** The manifests of the sounds, relative to the audio folder; each file in one is named relative to that manifest. */
+const MANIFESTS = ['manifest.json', 'voices/manifest.json'] as const;
 
 export function loadSettings(storage: Pick<Storage, 'getItem'> | null): AudioSettings {
   try {
     const raw = storage?.getItem(STORAGE_KEY);
     if (!raw) return { ...DEFAULTS };
     const v = JSON.parse(raw) as Partial<AudioSettings>;
-    return { muted: v.muted === true, volume: typeof v.volume === 'number' ? Math.min(Math.max(v.volume, 0), 1) : DEFAULTS.volume };
+    return { muted: v.muted === true, volume: typeof v.volume === 'number' ? Math.min(Math.max(v.volume, 0), 1) : DEFAULTS.volume, voices: v.voices !== false };
   } catch {
     return { ...DEFAULTS };
   }
@@ -79,16 +87,30 @@ export class AudioEngine implements AudioOut {
     this.settings = loadSettings(this.storage);
   }
 
-  /** Fetch the manifest and the encoded files (no audio context needed yet); resolves with the ids of the sounds there are. */
+  /** Fetch the manifests and the encoded files (no audio context needed yet); resolves with the ids of the sounds there are. */
   async fetch(): Promise<string[]> {
-    const res = await fetch(`${this.baseUrl}manifest.json`);
-    if (!res.ok) throw new Error(`audio manifest: ${res.status}`);
-    this.manifest = (await res.json()) as Manifest;
-    const ids = Object.keys(this.manifest.sounds);
+    const sounds: Record<string, Entry> = {};
+    const where = new Map<string, string>();
+    for (const name of MANIFESTS) {
+      const res = await fetch(`${this.baseUrl}${name}`);
+      // The first manifest is the game's sounds and must be there; the others (the voices) may be missing.
+      if (!res.ok) {
+        if (name === MANIFESTS[0]) throw new Error(`audio manifest: ${res.status}`);
+        continue;
+      }
+      const dir = name.includes('/') ? name.slice(0, name.lastIndexOf('/') + 1) : '';
+      const part = (await res.json()) as Manifest;
+      for (const [id, entry] of Object.entries(part.sounds)) {
+        sounds[id] = entry;
+        where.set(id, dir + entry.file);
+      }
+    }
+    this.manifest = { sounds };
+    const ids = Object.keys(sounds);
     await Promise.all(
       ids.map(async (id) => {
         try {
-          const r = await fetch(`${this.baseUrl}${this.manifest!.sounds[id]!.file}`);
+          const r = await fetch(`${this.baseUrl}${where.get(id)!}`);
           if (r.ok) this.raw.set(id, await r.arrayBuffer());
         } catch {
           /* a sound that does not arrive is a sound that is not played */
@@ -97,6 +119,17 @@ export class AudioEngine implements AudioOut {
     );
     if (this.ctx) await this.decodeAll();
     return ids;
+  }
+
+  /** How long a sound is, seconds (0 when it is not known). */
+  duration(id: string): number {
+    return this.manifest?.sounds[id]?.duration ?? 0;
+  }
+
+  /** What a sound is, for the log: the voice lines have a role and the words. */
+  describe(id: string): { role?: string; text?: string } {
+    const e = this.manifest?.sounds[id];
+    return { role: e?.role, text: e?.text };
   }
 
   get ids(): string[] {
@@ -174,6 +207,15 @@ export class AudioEngine implements AudioOut {
     this.apply();
   }
 
+  get voicesOn(): boolean {
+    return this.settings.voices;
+  }
+
+  setVoices(on: boolean): void {
+    this.settings.voices = on;
+    this.apply();
+  }
+
   setVolume(volume: number): void {
     this.settings.volume = Math.min(Math.max(volume, 0), 1);
     this.apply();
@@ -233,6 +275,7 @@ export class AudioEngine implements AudioOut {
     const ctx = this.ctx;
     const buffer = this.buffers.get(id);
     if (!ctx || !buffer || ctx.state !== 'running' || this.settings.muted) return;
+    if (!this.settings.voices && (o.bus ?? this.manifest?.sounds[id]?.bus) === 'voice') return;
     if (this.voices >= MAX_VOICES) return;
     const r = this.route(o, this.manifest?.sounds[id]);
     if (!r) return;
@@ -295,14 +338,14 @@ export class AudioEngine implements AudioOut {
     };
   }
 
-  duck(amount: number, seconds: number): void {
+  duck(amount: number, seconds: number, bus: Bus = 'ambience'): void {
     const ctx = this.ctx;
-    const amb = this.buses.get('ambience');
-    if (!ctx || !amb) return;
+    const g = this.buses.get(bus);
+    if (!ctx || !g) return;
     const t = ctx.currentTime;
-    const base = BUS_GAIN.ambience;
-    amb.gain.cancelScheduledValues(t);
-    amb.gain.setTargetAtTime(base * (1 - Math.min(Math.max(amount, 0), 0.9)), t, 0.03);
-    amb.gain.setTargetAtTime(base, t + 0.12, Math.max(seconds, 0.2) / 3);
+    const base = BUS_GAIN[bus];
+    g.gain.cancelScheduledValues(t);
+    g.gain.setTargetAtTime(base * (1 - Math.min(Math.max(amount, 0), 0.9)), t, 0.03);
+    g.gain.setTargetAtTime(base, t + 0.12, Math.max(seconds, 0.2) / 3);
   }
 }

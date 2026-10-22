@@ -1,0 +1,524 @@
+{
+ "sounds": {
+  "voice-torpedo-ahead-1": {
+   "file": "voice-torpedo-ahead-1.m4a",
+   "duration": 1.5,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "lookout",
+   "text": "Torpedo wake, dead ahead!"
+  },
+  "voice-torpedo-port-bow-1": {
+   "file": "voice-torpedo-port-bow-1.m4a",
+   "duration": 1.62,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "lookout",
+   "text": "Torpedo wake, port bow!"
+  },
+  "voice-torpedo-port-bow-2": {
+   "file": "voice-torpedo-port-bow-2.m4a",
+   "duration": 2.13,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "lookout",
+   "text": "Torpedo track on the port bow!"
+  },
+  "voice-torpedo-stbd-bow-1": {
+   "file": "voice-torpedo-stbd-bow-1.m4a",
+   "duration": 1.83,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "lookout",
+   "text": "Torpedo wake, starboard bow!"
+  },
+  "voice-torpedo-stbd-bow-2": {
+   "file": "voice-torpedo-stbd-bow-2.m4a",
+   "duration": 2.41,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "lookout",
+   "text": "Torpedo track on the starboard bow!"
+  },
+  "voice-torpedo-port-quarter-1": {
+   "file": "voice-torpedo-port-quarter-1.m4a",
+   "duration": 1.92,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "lookout",
+   "text": "Torpedo wake, port quarter!"
+  },
+  "voice-torpedo-stbd-quarter-1": {
+   "file": "voice-torpedo-stbd-quarter-1.m4a",
+   "duration": 2.13,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "lookout",
+   "text": "Torpedo wake, starboard quarter!"
+  },
+  "voice-enemy-torpedoes-1": {
+   "file": "voice-enemy-torpedoes-1.m4a",
+   "duration": 1.74,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "lookout",
+   "text": "Enemy has fired torpedoes!"
+  },
+  "voice-enemy-torpedoes-2": {
+   "file": "voice-enemy-torpedoes-2.m4a",
+   "duration": 1.92,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "lookout",
+   "text": "She's fired torpedoes! Look out!"
+  },
+  "voice-torpedo-passed-1": {
+   "file": "voice-torpedo-passed-1.m4a",
+   "duration": 1.67,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "lookout",
+   "text": "Torpedo's run under the keel!"
+  },
+  "voice-torpedo-passed-2": {
+   "file": "voice-torpedo-passed-2.m4a",
+   "duration": 1.69,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "lookout",
+   "text": "That one passed beneath us!"
+  },
+  "voice-sighted-1": {
+   "file": "voice-sighted-1.m4a",
+   "duration": 1.27,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "lookout",
+   "text": "Smoke on the horizon!"
+  },
+  "voice-sighted-2": {
+   "file": "voice-sighted-2.m4a",
+   "duration": 1.32,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "lookout",
+   "text": "Enemy ship in sight!"
+  },
+  "voice-aground-1": {
+   "file": "voice-aground-1.m4a",
+   "duration": 1.85,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "lookout",
+   "text": "We're aground, sir! Go astern!"
+  },
+  "voice-aground-2": {
+   "file": "voice-aground-2.m4a",
+   "duration": 2.27,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "lookout",
+   "text": "She's touched bottom! We're aground!"
+  },
+  "voice-hit-1": {
+   "file": "voice-hit-1.m4a",
+   "duration": 1.13,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "gunnery",
+   "text": "Hit! We've hit her!"
+  },
+  "voice-hit-2": {
+   "file": "voice-hit-2.m4a",
+   "duration": 0.67,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "gunnery",
+   "text": "A hit, sir!"
+  },
+  "voice-hit-3": {
+   "file": "voice-hit-3.m4a",
+   "duration": 0.71,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "gunnery",
+   "text": "Direct hit!"
+  },
+  "voice-straddle-1": {
+   "file": "voice-straddle-1.m4a",
+   "duration": 1.32,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "gunnery",
+   "text": "Straddle! Straddle!"
+  },
+  "voice-straddle-2": {
+   "file": "voice-straddle-2.m4a",
+   "duration": 1.23,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "gunnery",
+   "text": "We've straddled her, sir!"
+  },
+  "voice-enemy-fire-1": {
+   "file": "voice-enemy-fire-1.m4a",
+   "duration": 0.95,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "gunnery",
+   "text": "She's on fire!"
+  },
+  "voice-enemy-fire-2": {
+   "file": "voice-enemy-fire-2.m4a",
+   "duration": 1.23,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "gunnery",
+   "text": "Fire aboard the enemy!"
+  },
+  "voice-enemy-blown-1": {
+   "file": "voice-enemy-blown-1.m4a",
+   "duration": 1.71,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "gunnery",
+   "text": "Magazine! She's blown up!"
+  },
+  "voice-enemy-blown-2": {
+   "file": "voice-enemy-blown-2.m4a",
+   "duration": 2.13,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "gunnery",
+   "text": "She's gone! A magazine explosion!"
+  },
+  "voice-enemy-sinking-1": {
+   "file": "voice-enemy-sinking-1.m4a",
+   "duration": 1.06,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "gunnery",
+   "text": "She's going down!"
+  },
+  "voice-enemy-sinking-2": {
+   "file": "voice-enemy-sinking-2.m4a",
+   "duration": 1.39,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "gunnery",
+   "text": "Enemy ship is sinking, sir."
+  },
+  "voice-enemy-struck-1": {
+   "file": "voice-enemy-struck-1.m4a",
+   "duration": 1.92,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "gunnery",
+   "text": "She's struck her colours! Cease fire!"
+  },
+  "voice-enemy-struck-2": {
+   "file": "voice-enemy-struck-2.m4a",
+   "duration": 2.39,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "gunnery",
+   "text": "Enemy has struck. Cease fire, cease fire!"
+  },
+  "voice-enemy-disabled-1": {
+   "file": "voice-enemy-disabled-1.m4a",
+   "duration": 2.22,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "gunnery",
+   "text": "She's crippled, sir. She can't fight on."
+  },
+  "voice-enemy-broke-off-1": {
+   "file": "voice-enemy-broke-off-1.m4a",
+   "duration": 1.32,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "gunnery",
+   "text": "The enemy is breaking off!"
+  },
+  "voice-battery-silenced-1": {
+   "file": "voice-battery-silenced-1.m4a",
+   "duration": 1.2,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "gunnery",
+   "text": "Battery silenced!"
+  },
+  "voice-battery-silenced-2": {
+   "file": "voice-battery-silenced-2.m4a",
+   "duration": 1.36,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "gunnery",
+   "text": "Their guns have stopped, sir."
+  },
+  "voice-battery-fired-1": {
+   "file": "voice-battery-fired-1.m4a",
+   "duration": 1.55,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "gunnery",
+   "text": "Shore battery has opened fire!"
+  },
+  "voice-battery-flash-1": {
+   "file": "voice-battery-flash-1.m4a",
+   "duration": 1.67,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "gunnery",
+   "text": "Guns flashing behind the ridge!"
+  },
+  "voice-hit-taken-1": {
+   "file": "voice-hit-taken-1.m4a",
+   "duration": 1.09,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "damage",
+   "text": "We've been hit, sir!"
+  },
+  "voice-hit-taken-2": {
+   "file": "voice-hit-taken-2.m4a",
+   "duration": 1.48,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "damage",
+   "text": "Struck by a shell, sir!"
+  },
+  "voice-hit-taken-3": {
+   "file": "voice-hit-taken-3.m4a",
+   "duration": 1.34,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "damage",
+   "text": "Hit! Report damage!"
+  },
+  "voice-fire-1": {
+   "file": "voice-fire-1.m4a",
+   "duration": 2.15,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "damage",
+   "text": "Fire aboard! Fire parties turn out!"
+  },
+  "voice-fire-2": {
+   "file": "voice-fire-2.m4a",
+   "duration": 1.13,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "damage",
+   "text": "Fire in the ship, sir!"
+  },
+  "voice-flooding-1": {
+   "file": "voice-flooding-1.m4a",
+   "duration": 1.6,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "damage",
+   "text": "We're taking on water!"
+  },
+  "voice-flooding-2": {
+   "file": "voice-flooding-2.m4a",
+   "duration": 2.06,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "damage",
+   "text": "Flooding, sir. Pumps are running."
+  },
+  "voice-turret-out-1": {
+   "file": "voice-turret-out-1.m4a",
+   "duration": 1.32,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "damage",
+   "text": "Turret out of action!"
+  },
+  "voice-turret-out-2": {
+   "file": "voice-turret-out-2.m4a",
+   "duration": 1.3,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "damage",
+   "text": "We've lost a turret, sir."
+  },
+  "voice-steering-1": {
+   "file": "voice-steering-1.m4a",
+   "duration": 2.78,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "damage",
+   "text": "Steering gear's gone, sir. The rudder's jammed!"
+  },
+  "voice-sinking-1": {
+   "file": "voice-sinking-1.m4a",
+   "duration": 1.92,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "damage",
+   "text": "She's going down! Abandon ship!"
+  },
+  "voice-sinking-2": {
+   "file": "voice-sinking-2.m4a",
+   "duration": 2.22,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "damage",
+   "text": "We can't hold her, sir. Abandon ship!"
+  },
+  "voice-airborne-1": {
+   "file": "voice-airborne-1.m4a",
+   "duration": 1.39,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "wireless",
+   "text": "Aircraft is airborne."
+  },
+  "voice-airborne-2": {
+   "file": "voice-airborne-2.m4a",
+   "duration": 1.16,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "wireless",
+   "text": "Spotter is up, sir."
+  },
+  "voice-fort-found-1": {
+   "file": "voice-fort-found-1.m4a",
+   "duration": 1.5,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "wireless",
+   "text": "I have the battery in sight."
+  },
+  "voice-fort-found-2": {
+   "file": "voice-fort-found-2.m4a",
+   "duration": 1.25,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "wireless",
+   "text": "Battery located, sir."
+  },
+  "voice-mines-1": {
+   "file": "voice-mines-1.m4a",
+   "duration": 2.04,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "wireless",
+   "text": "Mines below us! Marking them on the chart."
+  },
+  "voice-returning-1": {
+   "file": "voice-returning-1.m4a",
+   "duration": 1.6,
+   "bus": "voice",
+   "loop": false,
+   "source": "elevenlabs-tts",
+   "licence": "ElevenLabs terms",
+   "role": "wireless",
+   "text": "Aircraft returning to the ship."
+  }
+ }
+}
