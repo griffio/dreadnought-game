@@ -10,6 +10,7 @@ import type { GunSpec } from '../gunnery/guns';
 import type { MuzzleShot } from '../gunnery/battery';
 import { Gunnery, type AerialObserver, type Contact } from '../gunnery/gunnery';
 import type { SalvoReport } from '../gunnery/spotting';
+import type { ShellKind } from '../gunnery/shells';
 import { mountsFromSpec } from '../gunnery/mounts';
 import type { RangefinderSpec } from '../gunnery/rangefinder';
 import type { DiveInfo, ImpactInfo, ImpactResolution, ShellEvent } from '../gunnery/shell-world';
@@ -341,11 +342,11 @@ export class Combatant implements Contact {
     const trace = traceShell(
       this.geometry,
       this.trainOf,
-      { massKg: spec.massKg, diameterMm: spec.diameterM * 1000, speed, impact: spec.fuze === 'impact' },
+      { massKg: spec.massKg, diameterMm: spec.diameterM * 1000, speed, impact: spec.fuze === 'impact', armour: spec.armour },
       { origin: from, dir, segment },
     );
     if (!trace) return null;
-    return this.apply(trace, spec.massKg, spec.diameterM * 1000, filler(spec.massKg, spec.fillerKg));
+    return this.apply(trace, spec.massKg, spec.diameterM * 1000, filler(spec.massKg, spec.fillerKg), spec.kind === 'he');
   };
 
   /** A shell that fell close by and may have kept going under the water into the hull. */
@@ -356,7 +357,7 @@ export class Combatant implements Contact {
     const origin = this.toLocal(info.x, 0, info.z);
     const dir = this.dirToLocal(info.velocity[0] / info.speed, info.velocity[1] / info.speed, info.velocity[2] / info.speed);
     const reach = 45 * caliber * Math.min(1, info.angleDeg / 15);
-    const shell = { massKg: spec.massKg, diameterMm: spec.diameterM * 1000, speed: info.speed * 0.6, impact: spec.fuze === 'impact' };
+    const shell = { massKg: spec.massKg, diameterMm: spec.diameterM * 1000, speed: info.speed * 0.6, impact: spec.fuze === 'impact', armour: spec.armour };
     const probe = traceShell(this.geometry, this.trainOf, shell, { origin, dir, segment: reach });
     if (!probe || probe.entry[1] > -0.3) return null;
     // Water slows it quickly: the speed it has when it reaches the hull.
@@ -364,11 +365,16 @@ export class Combatant implements Contact {
     const speed = info.speed * 0.6 * Math.exp(-travelled / (50 * caliber));
     const trace = traceShell(this.geometry, this.trainOf, { ...shell, speed }, { origin, dir, segment: reach });
     if (!trace || trace.entry[1] > -0.3 || trace.kind === 'pass') return null;
-    return this.apply(trace, spec.massKg, spec.diameterM * 1000, filler(spec.massKg, spec.fillerKg));
+    return this.apply(trace, spec.massKg, spec.diameterM * 1000, filler(spec.massKg, spec.fillerKg), spec.kind === 'he');
   };
 
-  private apply(trace: TraceResult, massKg: number, diameterMm: number, fillerKg: number): ImpactResolution {
-    this.damage.applyTrace(trace, { massKg, diameterMm, fillerKg });
+  /** Load a kind of round in the main battery: the self-directing anti-destroyer guns keep their own. */
+  setShell(kind: ShellKind): void {
+    for (const b of this.batteries) if (!this.autoBatteries.has(b)) b.gunnery.setShell(kind);
+  }
+
+  private apply(trace: TraceResult, massKg: number, diameterMm: number, fillerKg: number, highExplosive = false): ImpactResolution {
+    this.damage.applyTrace(trace, { massKg, diameterMm, fillerKg, highExplosive });
     this.impacts[trace.kind]++;
     const key = `${trace.first.kind}:${trace.kind}`;
     this.byPlate[key] = (this.byPlate[key] ?? 0) + 1;

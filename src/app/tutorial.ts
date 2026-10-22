@@ -64,6 +64,13 @@ export interface TutorialView {
 }
 
 /** The words for a control, by device. */
+/** How to load the other round, by device. */
+const SHELL_HOW: Record<InputDevice, string> = {
+  'keyboard-mouse': 'Pressing 2 (1 goes back to armour-piercing)',
+  gamepad: 'Holding LT and pressing A (again to go back)',
+  touch: 'Tapping SHELL (again to go back)',
+};
+
 const KEYS: Record<InputDevice, { more: string; less: string; left: string; right: string; fire: string; auto: string; sight: string; pick: string }> = {
   'keyboard-mouse': { more: 'E', less: 'Q', left: '[', right: ']', fire: 'Space', auto: 'T', sight: 'the right mouse button (or V)', pick: 'Click' },
   gamepad: { more: 'D-pad UP', less: 'D-pad DOWN', left: 'D-pad LEFT', right: 'D-pad RIGHT', fire: 'RT', auto: 'A', sight: 'LT', pick: 'Press RB to select' },
@@ -224,8 +231,8 @@ export const GUNNERY_SCHOOL: readonly TutorialStep[] = [
     title: '10. CHOOSE YOUR RANGE',
     focus: 'ruler',
     manual: true,
-    text: () =>
-      'Under the target card the penetration ruler shows at what range your shells get through each part of her armour: BELT (the side), UPPER and DECK. Close in, shells are fast and flat and punch through the side; far out they are slow and drop steeply, so only the upper works and the deck are open. Pick the range that suits the target.',
+    text: (d) =>
+      `Under the target card the penetration ruler shows at what range your shells get through each part of her armour: BELT (the side), UPPER and DECK. Close in, shells are fast and flat and punch through the side; far out they are slow and drop steeply, so only the upper works and the deck are open. Pick the range that suits the target. The ruler is for armour-piercing shell: ${SHELL_HOW[d]} loads high-explosive, which bursts on contact and is better against upperworks, small ships and forts, but weak against armour.`,
     why: 'Range is the decision the whole fight turns on: close in you can hurt anything, and anything can hurt you.',
     done: () => false,
   },

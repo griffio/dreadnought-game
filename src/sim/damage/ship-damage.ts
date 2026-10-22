@@ -17,6 +17,8 @@ export interface ShellDamageData {
   massKg: number;
   diameterMm: number;
   fillerKg: number;
+  /** A heavy high-explosive shell (the round chosen for the main guns): when it breaks up on armour its blast is the heavier for its filling. */
+  highExplosive?: boolean;
 }
 
 export type TurretState = 'ok' | 'jammed' | 'destroyed' | 'no-ammo';
@@ -350,14 +352,17 @@ export class ShipDamage {
   /** A shell that broke on armour: no burst inside, but the blow and the splinters hurt the men behind it. */
   private spall(r: TraceResult, shell: ShellDamageData): void {
     const comp = this.comps[this.compIndexAtX(r.at[0])]!;
-    const sev = 0.06 * (shell.diameterMm / 305) ** 2;
+    // A high-explosive shell breaks up on the plate with more than twice the explosive of an armour-piercing one: the blow, the blast
+    // and the splinters are heavier. (Every other shell is 1, so that what was tuned before is as it was.)
+    const filler = shell.highExplosive ? Math.max(1, shell.fillerKg / (shell.massKg * 0.05)) : 1;
+    const sev = 0.06 * (shell.diameterMm / 305) ** 2 * filler;
     comp.crew = clamp(comp.crew - sev * 0.5, 0, 1);
     const kind = r.stoppedBy?.kind;
     const k = (shell.diameterMm / 305) ** 2;
     if (kind === 'turret-face' || kind === 'turret-side' || kind === 'turret-roof') {
       const t = this.turrets.find((x) => r.stoppedBy?.component === `turret:${x.id}`);
       if (t) {
-        t.crew = clamp(t.crew - 0.12 * k, 0, 1);
+        t.crew = clamp(t.crew - 0.12 * k * Math.sqrt(filler), 0, 1);
         // The blow can jam the training gear or the guns in their cradles even when nothing comes through.
         if (t.state === 'ok' && this.rng.next() < TUNING.shockJamChance * k) {
           t.state = 'jammed';
@@ -377,7 +382,7 @@ export class ShipDamage {
       return;
     } else if ((kind === 'belt' || kind === 'side') && r.entry[1] > -2 && r.entry[1] < 0.6) {
       // A blow on the belt starts seams and rivets: a small leak at the waterline.
-      if (this.rng.next() < TUNING.shockLeakChance * k) {
+      if (this.rng.next() < TUNING.shockLeakChance * k * Math.sqrt(filler)) {
         const idx = this.compIndexAtX(r.entry[0]);
         this.holes.push({ comp: idx, area: 0.3 * k, y: Math.min(r.entry[1], 0), side: Math.sign(r.entry[2]) || 1 });
         this.report('warn', `The belt is started by a hit: a leak in the ${plain(this.comps[idx]!.spec.name)}.`, r.at);

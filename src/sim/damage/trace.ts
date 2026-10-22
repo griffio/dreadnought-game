@@ -8,6 +8,8 @@ export interface TraceShell {
   impact?: boolean;
   /** Speed on arrival, m/s. */
   speed: number;
+  /** What it can defeat of armour, against an armour-piercing shell of the same size (default 1). */
+  armour?: number;
 }
 
 export interface TraceRay {
@@ -129,7 +131,7 @@ export function traceShell(
   for (const c of list) {
     const delay = shell.impact ? IMPACT_DELAY_SECONDS : FUZE_DELAY_SECONDS;
     if (fuzeAt !== null && c.t > fuzeAt + speed * delay) break;
-    const r = throughPlate(speed, shell.massKg, shell.diameterMm, c.plate.mm, c.cos);
+    const r = throughPlate(speed, shell.massKg, shell.diameterMm, c.plate.mm, c.cos, shell.armour);
     if (r.outcome !== 'penetrate') {
       if (fuzeAt === null) {
         stopped = { c, kind: r.outcome };

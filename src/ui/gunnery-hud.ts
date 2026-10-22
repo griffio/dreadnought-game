@@ -13,8 +13,8 @@ const QUALITY_LABEL: Record<TrackQuality, string> = {
 };
 
 const HINTS: Record<InputDevice, string> = {
-  'keyboard-mouse': 'click ship: designate  ·  Space fire  ·  hold right-button / V: director sight  ·  Q/E range  ·  [ ] deflection  ·  T auto-spot  ·  Tab next target  ·  B cease fire  ·  F torpedo tubes  ·  M plot',
-  gamepad: 'RB/LB target  ·  hold LT sight (R3/L3 zoom)  ·  RT fire  ·  D-pad corrections  ·  A auto-spot  ·  B cease fire  ·  X torpedo tubes  ·  SELECT plot',
+  'keyboard-mouse': 'click ship: designate  ·  Space fire  ·  hold right-button / V: director sight  ·  Q/E range  ·  [ ] deflection  ·  T auto-spot  ·  1/2 AP/HE shell  ·  Tab next target  ·  B cease fire  ·  F torpedo tubes  ·  M plot  ·  C shell cam  ·  R replay',
+  gamepad: 'RB/LB target  ·  hold LT sight (R3/L3 zoom)  ·  RT fire  ·  D-pad corrections  ·  A auto-spot (with LT: AP/HE shell)  ·  B cease fire  ·  X torpedo tubes  ·  SELECT plot  ·  R3 shell cam  ·  LT+Y replay',
   touch: '',
 };
 
@@ -75,6 +75,7 @@ export class GunneryHud {
   private readonly tof: HTMLOutputElement;
   private readonly rate: HTMLOutputElement;
   private readonly corr: HTMLDivElement;
+  private readonly shellLine: HTMLDivElement;
   private readonly salvo: HTMLDivElement;
   private readonly enemyLine: HTMLDivElement;
   private readonly ruler: HTMLDivElement;
@@ -107,6 +108,7 @@ export class GunneryHud {
     this.tof = cell('FLIGHT');
     this.rate = cell('PLOT');
     this.corr = el('div', 'gcorr', this.card);
+    this.shellLine = el('div', 'gshell', this.card);
     this.pips = el('div', 'gpips', this.card);
     this.salvo = el('div', 'gsalvo', this.card);
     this.enemyLine = el('div', 'genemy', this.card);
@@ -152,6 +154,11 @@ export class GunneryHud {
     const defl = Math.abs(c.deflection) < 0.5 ? '0' : `${c.deflection > 0 ? 'R' : 'L'}${Math.round(Math.abs(c.deflection))}`;
     this.corr.textContent = `CORRECTION  RANGE ${range}  DEFL ${defl}   AUTO-SPOT ${s.autoSpot ? 'ON' : 'OFF'}`;
     this.corr.classList.toggle('auto', s.autoSpot);
+    // The round loaded for the next salvo, in the colour its tracers glow.
+    this.shellLine.hidden = !s.shellChoice;
+    this.shellLine.dataset.kind = s.shell;
+    this.shellLine.textContent =
+      s.shell === 'he' ? 'SHELL  HE  ·  bursts on contact  ·  weak against thick armour' : 'SHELL  AP  ·  pierces armour where the ruler is lit';
 
     this.renderPips(s);
 
@@ -225,8 +232,9 @@ export class GunneryHud {
       this.enemyLine.textContent = `ENEMY  ${bits.join('  ·  ')}`;
     }
     // The penetration ruler: where our shells defeat her belt, her side, her deck.
-    this.ruler.hidden = !envelope || !t;
-    if (!envelope || !t) return;
+    // (A high-explosive shell does not pierce: the ruler is for armour-piercing.)
+    this.ruler.hidden = !envelope || !t || status.shell === 'he';
+    if (!envelope || !t || status.shell === 'he') return;
     if (envelope !== this.rulerFor) {
       this.rulerFor = envelope;
       this.ruler.replaceChildren(this.rulerMark);

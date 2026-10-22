@@ -62,10 +62,14 @@ export interface Intent {
   autoSpot: boolean;
   /** Edge: pick a shell type. */
   shell: ShellChoice | null;
+  /** Edge: change to the other shell (armour-piercing and high-explosive). */
+  cycleShell: boolean;
 
   /** Edge: toggles. */
   torpedoMode: boolean;
   cycleCamera: boolean;
+  /** Edge: review the last of the fight (the replay). */
+  replay: boolean;
   togglePlot: boolean;
   toggleDamageView: boolean;
   smoke: boolean;
@@ -94,8 +98,10 @@ export function createIntent(): Intent {
     deflectCorrect: 0,
     autoSpot: false,
     shell: null,
+    cycleShell: false,
     torpedoMode: false,
     cycleCamera: false,
+    replay: false,
     togglePlot: false,
     toggleDamageView: false,
     smoke: false,
@@ -127,8 +133,10 @@ export function clearEdges(i: Intent): void {
   i.deflectCorrect = 0;
   i.autoSpot = false;
   i.shell = null;
+  i.cycleShell = false;
   i.torpedoMode = false;
   i.cycleCamera = false;
+  i.replay = false;
   i.togglePlot = false;
   i.toggleDamageView = false;
   i.smoke = false;

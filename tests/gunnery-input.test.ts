@@ -137,25 +137,53 @@ describe('gamepad: gunnery', () => {
     buttons: Array.from({ length: 17 }, (_, i) => ({ pressed: (over.buttons?.[i] ?? 0) > 0.5, value: over.buttons?.[i] ?? 0 })),
   });
 
-  it('RT fires, LT holds the sight, A toggles auto-spot', () => {
-    let current = pad({ buttons: { 7: 1, 6: 1, 0: 1 } });
+  it('RT fires, LT holds the sight, A toggles auto-spot (and with the sight held, changes the shell instead)', () => {
+    let current = pad({ buttons: { 7: 1, 0: 1 } });
     let t = 0;
     const src = new GamepadSource(() => [current], () => t);
     const out = createIntent();
     src.poll(out);
     expect(out.fire).toBe(true);
-    expect(out.sight).toBe(true);
     expect(out.autoSpot).toBe(true);
-    // Held buttons: fire/sight are levels, auto-spot is an edge.
+    expect(out.cycleShell).toBe(false);
+    // Held buttons: fire is a level, auto-spot is an edge.
     clearEdges(out);
     out.fire = false;
-    out.sight = false;
     t += 16;
     src.poll(out);
     expect(out.fire).toBe(true);
-    expect(out.sight).toBe(true);
     expect(out.autoSpot).toBe(false);
+    // With the sight up (LT) the same button is the shell: auto-spot is left as it was.
     current = pad();
+    t += 16;
+    src.poll(createIntent());
+    current = pad({ buttons: { 6: 1, 0: 1 } });
+    t += 16;
+    const sighted = createIntent();
+    src.poll(sighted);
+    expect(sighted.sight).toBe(true);
+    expect(sighted.cycleShell).toBe(true);
+    expect(sighted.autoSpot).toBe(false);
+    current = pad();
+  });
+
+  it('with the sight held, Y is the replay instead of the damage report', () => {
+    let current = pad({ buttons: { 3: 1 } });
+    let t = 0;
+    const src = new GamepadSource(() => [current], () => t);
+    const plain = createIntent();
+    src.poll(plain);
+    expect(plain.toggleDamageView).toBe(true);
+    expect(plain.replay).toBe(false);
+    current = pad();
+    t += 16;
+    src.poll(createIntent());
+    current = pad({ buttons: { 6: 1, 3: 1 } });
+    t += 16;
+    const sighted = createIntent();
+    src.poll(sighted);
+    expect(sighted.replay).toBe(true);
+    expect(sighted.toggleDamageView).toBe(false);
   });
 
   it('with the sight up the stick clicks zoom it; without, R3 cycles the camera', () => {

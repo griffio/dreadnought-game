@@ -15,6 +15,9 @@ export class GunneryWidgets implements InputSource {
   private readonly auto: HTMLButtonElement;
   private readonly tubes: HTMLButtonElement;
   private readonly spotterBtn: HTMLButtonElement;
+  private readonly shellBtn: HTMLButtonElement;
+  private readonly camBtn: HTMLButtonElement;
+  private readonly replayBtn: HTMLButtonElement;
   private readonly fireLabel: HTMLElement;
   private readonly autoLabel: HTMLElement;
   private readonly deflLabels: HTMLElement[];
@@ -30,6 +33,9 @@ export class GunneryWidgets implements InputSource {
   private damageToggle = false;
   private tubesToggle = false;
   private spotterToggle = false;
+  private shellToggle = false;
+  private camToggle = false;
+  private replayPress = false;
   private plotToggle = false;
   private touched = false;
 
@@ -45,6 +51,9 @@ export class GunneryWidgets implements InputSource {
     const damage = this.button('DAMAGE', 'damage');
     this.tubes = this.button('TORPEDO', 'tubes');
     this.spotterBtn = this.button('SPOTTER', 'spotter');
+    this.shellBtn = this.button('SHELL AP', 'shell');
+    this.camBtn = this.button('SHELL CAM', 'shellcam');
+    this.replayBtn = this.button('REPLAY', 'replaybtn');
     const plot = this.button('PLOT', 'plot');
     const rangeUp = this.button('RANGE +', 'step');
     const rangeDown = this.button('RANGE -', 'step');
@@ -53,7 +62,7 @@ export class GunneryWidgets implements InputSource {
     const steppers = document.createElement('div');
     steppers.className = 'steppers';
     steppers.append(rangeUp, rangeDown, deflL, deflR);
-    this.element.append(this.fire, this.sight, cease, this.auto, next, damage, this.tubes, this.spotterBtn, plot, steppers);
+    this.element.append(this.fire, this.sight, cease, this.auto, next, damage, this.tubes, this.spotterBtn, this.shellBtn, this.camBtn, this.replayBtn, plot, steppers);
     this.fireLabel = this.fire.querySelector('span')!;
     this.autoLabel = this.auto.querySelector('span')!;
     this.deflLabels = [deflL.querySelector('span')!, deflR.querySelector('span')!];
@@ -80,6 +89,9 @@ export class GunneryWidgets implements InputSource {
     this.press(damage, () => (this.damageToggle = true));
     this.press(this.tubes, () => (this.tubesToggle = true));
     this.press(this.spotterBtn, () => (this.spotterToggle = true));
+    this.press(this.shellBtn, () => (this.shellToggle = true));
+    this.press(this.camBtn, () => (this.camToggle = true));
+    this.press(this.replayBtn, () => (this.replayPress = true));
     this.press(plot, () => (this.plotToggle = true));
     this.press(rangeUp, () => this.rangeSteps++);
     this.press(rangeDown, () => this.rangeSteps--);
@@ -137,6 +149,18 @@ export class GunneryWidgets implements InputSource {
       out.togglePlot = true;
       this.plotToggle = false;
     }
+    if (this.shellToggle) {
+      out.cycleShell = true;
+      this.shellToggle = false;
+    }
+    if (this.camToggle) {
+      out.cycleCamera = true;
+      this.camToggle = false;
+    }
+    if (this.replayPress) {
+      out.replay = true;
+      this.replayPress = false;
+    }
     if (this.cycle !== 0) {
       out.cycleTarget = 1;
       this.cycle = 0;
@@ -154,6 +178,11 @@ export class GunneryWidgets implements InputSource {
     return active;
   }
 
+  /** The shell camera is on (each salvo is followed to its splash). */
+  setShellCam(on: boolean): void {
+    this.camBtn.dataset.on = on ? '1' : '0';
+  }
+
   /** Reflect the battery's state: the ring fills as turrets come ready, and toggles show their state. */
   update(s: GunneryStatus, torpedoMode = false, spotter: { label: string; on: boolean } | null = null): void {
     this.spotterBtn.hidden = spotter === null;
@@ -161,6 +190,10 @@ export class GunneryWidgets implements InputSource {
       this.spotterBtn.dataset.on = spotter.on ? '1' : '0';
       this.spotterBtn.querySelector('span')!.textContent = spotter.label;
     }
+    // The shell button names the round loaded, in the colour its tracers glow; with the tubes in hand there is no choice to make.
+    this.shellBtn.hidden = !s.shellChoice || torpedoMode;
+    this.shellBtn.dataset.kind = s.shell;
+    this.shellBtn.querySelector('span')!.textContent = s.shell === 'he' ? 'SHELL HE' : 'SHELL AP';
     // With the tubes in hand the same controls fire the torpedoes, set the fan and swap the run speed.
     this.fireLabel.textContent = torpedoMode ? 'LAUNCH' : 'FIRE';
     this.autoLabel.textContent = torpedoMode ? 'RUN SPEED' : 'AUTO SPOT';

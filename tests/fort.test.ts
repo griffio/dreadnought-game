@@ -5,6 +5,7 @@ import { CALM } from '../src/sim/gunnery/ballistics';
 import { GUN_12_45_MK_X, GUN_15_40_COAST, GUN_17_40_SK } from '../src/sim/gunnery/guns';
 import { mountsFromSpec } from '../src/sim/gunnery/mounts';
 import { RANGEFINDER_9FT } from '../src/sim/gunnery/rangefinder';
+import { ARCADE } from '../src/sim/pace';
 import type { ImpactInfo, LiveShell, ShellEvent } from '../src/sim/gunnery/shell-world';
 import { Terrain } from '../src/sim/terrain/terrain';
 
@@ -29,6 +30,17 @@ const SPEC: FortSpec = {
 function make(spec: FortSpec = SPEC, height = 40): Fort {
   return new Fort({ spec, mounts: mountsFromSpec(fortShipSpec(spec)), terrain: ground(height), env: () => CALM, visibilityKm: () => 40, seed: 3, id: 101 });
 }
+
+describe('a fort at the arcade pace', () => {
+  it('reloads and swings her guns faster, and plots faster, without touching the gun in the data file', () => {
+    const real = make();
+    const quick = new Fort({ spec: SPEC, mounts: mountsFromSpec(fortShipSpec(SPEC)), terrain: ground(40), env: () => CALM, visibilityKm: () => 40, seed: 3, id: 102, pace: ARCADE });
+    expect(real.gunnery.battery.gun.reloadSeconds).toBe(GUN_15_40_COAST.reloadSeconds);
+    expect(quick.gunnery.battery.gun.reloadSeconds).toBeCloseTo(GUN_15_40_COAST.reloadSeconds / ARCADE.reload, 6);
+    expect(quick.gunnery.battery.gun.trainRateDegPerSec).toBeGreaterThan(GUN_15_40_COAST.trainRateDegPerSec * 2);
+    expect(GUN_15_40_COAST.reloadSeconds).toBe(real.gunnery.battery.gun.reloadSeconds);
+  });
+});
 
 function shell(gun = GUN_12_45_MK_X, fuze?: 'impact'): LiveShell {
   return { id: 1, salvo: 1, shooter: 1, spec: fuze ? { ...gun.shell, fuze } : gun.shell, state: { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, t: 0 }, passed: [] };

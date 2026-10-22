@@ -26,6 +26,10 @@ export interface ShellSpec {
    * deep inside. 'impact' bursts on the first solid thing it meets, which suits a light shell against a ship's upperworks.
    */
   fuze?: 'delay' | 'impact';
+  /** Armour-piercing or high-explosive (default: armour-piercing, unless impact-fuzed). It colours the tracer; see shells.ts. */
+  kind?: 'ap' | 'he';
+  /** What it can defeat of armour, against an armour-piercing shell of the same weight and speed (default 1): a thin-walled round breaks up on plate. */
+  armour?: number;
 }
 
 export interface Environment {

@@ -1,6 +1,7 @@
 import type { AiProfile } from './combat/ai';
 import type { ShipSetup } from './combat/setup';
 import { REAL_PLOT, type PlotTiming } from './gunnery/gunnery';
+import type { GunSpec } from './gunnery/guns';
 import { handlingFor } from './ships/dynamics';
 
 /**
@@ -15,6 +16,8 @@ export type PaceId = 'real' | 'arcade';
 export interface Pace {
   id: PaceId;
   name: string;
+  /** What it is like to play, a line for the front door. */
+  blurb: string;
   /** Top speed, times the ship's own. */
   speed: number;
   /** The engines gather and shed way this many times as fast. */
@@ -34,11 +37,14 @@ export interface Pace {
   rangefinderError: number;
   /** The plotting table's own timing. */
   plot: PlotTiming;
+  /** The time that earns the Admiralty's bonus for a quick finish, times the sortie's own par: a quicker game has a shorter one. */
+  parScale: number;
 }
 
 export const REAL: Pace = {
   id: 'real',
   name: 'Realistic',
+  blurb: 'Heavy ships that take a minute to gather way, shells half a minute in the air, a plot that takes a minute to settle. A fight lasts a quarter of an hour.',
   speed: 1,
   engines: 1,
   rudder: 1,
@@ -49,11 +55,13 @@ export const REAL: Pace = {
   engagement: 1,
   rangefinderError: 1,
   plot: REAL_PLOT,
+  parScale: 1,
 };
 
 export const ARCADE: Pace = {
   id: 'arcade',
   name: 'Arcade',
+  blurb: 'Ships half as fast again and about three times as quick to turn, guns that reload in half the time, a plot that settles in twenty seconds. A fight lasts a few minutes.',
   speed: 1.5,
   engines: 2.5,
   rudder: 2.5,
@@ -65,6 +73,7 @@ export const ARCADE: Pace = {
   rangefinderError: 0.7,
   // A reading every two thirds of a second, a plot that remembers forty, and the confidence to call a course after a dozen.
   plot: { rangingPeriod: 0.667, window: 40, tau: 16, positionSigma: 20, minSpan: 2.4 },
+  parScale: 0.45,
 };
 
 export const PACES: Record<PaceId, Pace> = { real: REAL, arcade: ARCADE };
@@ -75,6 +84,17 @@ export function isPaceId(v: string | null | undefined): v is PaceId {
 
 export function paceById(id: string | null | undefined): Pace {
   return isPaceId(id) ? PACES[id] : REAL;
+}
+
+/** A gun at the given pace: it reloads and swings round faster. The gun in the data file is left as it is. */
+export function pacedGun(gun: GunSpec, pace: Pace): GunSpec {
+  if (pace === REAL) return gun;
+  return {
+    ...gun,
+    reloadSeconds: gun.reloadSeconds / pace.reload,
+    trainRateDegPerSec: gun.trainRateDegPerSec * pace.slew,
+    elevationRateDegPerSec: gun.elevationRateDegPerSec * pace.slew,
+  };
 }
 
 /** A ship's setup at the given pace: the same ship, with her speed, handling, guns, tubes and plotting table wound on. */
@@ -93,15 +113,7 @@ export function pacedSetup(setup: ShipSetup, pace: Pace): ShipSetup {
       turnRadiusLengths: h.turnRadiusLengths / pace.turning,
       yawResponseSeconds: h.yawResponseSeconds / pace.turning,
     },
-    batteries: setup.batteries.map((b) => ({
-      ...b,
-      gun: {
-        ...b.gun,
-        reloadSeconds: b.gun.reloadSeconds / pace.reload,
-        trainRateDegPerSec: b.gun.trainRateDegPerSec * pace.slew,
-        elevationRateDegPerSec: b.gun.elevationRateDegPerSec * pace.slew,
-      },
-    })),
+    batteries: setup.batteries.map((b) => ({ ...b, gun: pacedGun(b.gun, pace) })),
     rangefinder: {
       ...setup.rangefinder,
       angularError: setup.rangefinder.angularError * pace.rangefinderError,

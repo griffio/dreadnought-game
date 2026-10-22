@@ -61,6 +61,35 @@ export class ShipRig {
     if (n !== undefined) this.poses[n]!.slide = -Math.abs(metres);
   }
 
+  /**
+   * The turrets' articulation, flattened for a replay: for each turret in the model's order, its train, its elevation and the recoil
+   * slide of each barrel. The matrices are not kept: they follow from these.
+   */
+  snapshot(): Float32Array {
+    const turrets = this.model.turrets;
+    const out = new Float32Array(turrets.reduce((n, t) => n + 2 + t.barrelNodes.length, 0));
+    let o = 0;
+    for (const t of turrets) {
+      out[o++] = this.poses[t.houseNode]!.train;
+      out[o++] = this.poses[t.barrelNodes[0] ?? t.houseNode]!.elevation;
+      for (const n of t.barrelNodes) out[o++] = this.poses[n]!.slide;
+    }
+    return out;
+  }
+
+  /** Lay the turrets as a snapshot had them (the matrices are recomputed by the next `update`). */
+  restore(a: ArrayLike<number>): void {
+    let o = 0;
+    for (const t of this.model.turrets) {
+      this.poses[t.houseNode]!.train = a[o++] ?? 0;
+      const elevation = a[o++] ?? 0;
+      for (const n of t.barrelNodes) {
+        this.poses[n]!.elevation = elevation;
+        this.poses[n]!.slide = a[o++] ?? 0;
+      }
+    }
+  }
+
   /** Recompute all node matrices from the current poses. */
   update(): void {
     const nodes: readonly NodeDef[] = this.model.nodes;

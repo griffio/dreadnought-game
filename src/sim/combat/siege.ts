@@ -10,6 +10,8 @@ import { Grounding } from '../ships/grounding';
 import type { Terrain } from '../terrain/terrain';
 import type { ShellEvent } from '../gunnery/shell-world';
 import { Combatant, setupExtras, type ShipReport } from './combatant';
+import type { ShellKind } from '../gunnery/shells';
+import { pacedSetup, REAL, type Pace } from '../pace';
 import type { ShipSetup } from './setup';
 
 const DEG = Math.PI / 180;
@@ -23,6 +25,10 @@ export interface SiegeOptions {
   mines?: MineField;
   env?: Environment;
   visibilityKm?: number;
+  /** How fast the world runs: the ship, the forts and the aircraft at that pace (default: the real one). */
+  pace?: Pace;
+  /** The round her main guns are loaded with (default: armour-piercing). */
+  shell?: ShellKind;
 }
 
 /**
@@ -44,10 +50,11 @@ export class Siege {
 
   constructor(opts: SiegeOptions) {
     const env = opts.env ?? CALM;
+    const setup = pacedSetup(opts.setup, opts.pace ?? REAL);
     this.terrain = opts.terrain;
     this.mines = opts.mines ?? new MineField();
-    const hull = opts.setup.ship.hull;
-    this.dynamics = new ShipDynamics(handlingFor(hull.length, opts.setup.maxSpeedKn, opts.setup.handling));
+    const hull = setup.ship.hull;
+    this.dynamics = new ShipDynamics(handlingFor(hull.length, setup.maxSpeedKn, setup.handling));
     const d = this.dynamics;
     d.x = opts.start.x;
     d.z = opts.start.z;
@@ -66,31 +73,32 @@ export class Siege {
     });
     this.player = new Combatant({
       id: 1,
-      name: opts.setup.name,
-      ship: opts.setup.ship,
-      damage: opts.setup.damage,
+      name: setup.name,
+      ship: setup.ship,
+      damage: setup.damage,
       dynamics: d,
       frame,
-      batteries: opts.setup.batteries,
-      rangefinder: opts.setup.rangefinder,
-      skill: opts.setup.skill,
+      batteries: setup.batteries,
+      rangefinder: setup.rangefinder,
+      skill: setup.skill,
       env: () => env,
       visibilityKm: () => opts.visibilityKm ?? 40,
       seed: opts.seed * 31 + 1,
       solvePeriod: 0.5,
       terrain: opts.terrain,
-      ...setupExtras(opts.setup),
+      ...setupExtras(setup),
     });
     this.player.damage.canStrike = false;
+    if (opts.shell) this.player.setShell(opts.shell);
     this.grounding = new Grounding(opts.terrain, { length: hull.length, beam: hull.beam, draft: hull.draft });
 
     opts.forts.forEach((spec, i) => {
-      const fort = new Fort({ spec, mounts: mountsFromSpec(fortShipSpec(spec)), terrain: opts.terrain, env: () => env, visibilityKm: () => opts.visibilityKm ?? 40, seed: opts.seed * 17 + i, id: 100 + i });
+      const fort = new Fort({ spec, mounts: mountsFromSpec(fortShipSpec(spec)), terrain: opts.terrain, env: () => env, visibilityKm: () => opts.visibilityKm ?? 40, seed: opts.seed * 17 + i, id: 100 + i, pace: opts.pace });
       fort.setOpponents([this.player]);
       this.forts.push(fort);
     });
     this.player.setOpponents(this.forts);
-    this.plane = new SpotterPlane({ ship: () => ({ x: d.x, z: d.z }) }, opts.terrain, (x, z, r) => this.mines.reveal(x, z, r), () => opts.visibilityKm ?? 40);
+    this.plane = new SpotterPlane({ ship: () => ({ x: d.x, z: d.z }) }, opts.terrain, (x, z, r) => this.mines.reveal(x, z, r), () => opts.visibilityKm ?? 40, opts.pace);
     this.player.setAerial(this.plane);
     for (const fort of this.forts) {
       fort.onReport = () => {};

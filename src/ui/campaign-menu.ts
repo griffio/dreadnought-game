@@ -2,6 +2,7 @@ import type { Campaign } from '../campaign/campaign';
 import { MISSIONS, PLAYTESTS, PRACTICE, type MissionDef } from '../campaign/missions';
 import { REFITS, nextRefitCost } from '../campaign/refits';
 import { isShipId, shipById } from '../data/ships/roster';
+import { ARCADE, PACES, REAL } from '../sim/pace';
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, parent?: HTMLElement, text?: string): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
@@ -199,6 +200,22 @@ export class CampaignMenu {
     el('span', '', obj, m.objective);
     const hints = el('ul', 'dhints', this.detail);
     for (const h of m.hints) el('li', '', hints, h);
+    // How fast the sorties are fought is the player's to choose, for every one of them. Practice and the playtest have their own.
+    if (!m.practice && !m.playtest) {
+      const pace = el('div', 'dpace', this.detail);
+      el('label', '', pace, 'PACE');
+      const choices = el('div', 'dpchoices', pace);
+      for (const p of [REAL, ARCADE]) {
+        const b = el('button', 'dpbtn', choices, p.name.toUpperCase());
+        b.dataset.id = p.id;
+        b.dataset.on = this.campaign.state.pace === p.id ? '1' : '0';
+        b.addEventListener('click', () => {
+          this.campaign.setPace(p.id);
+          this.refresh();
+        });
+      }
+      el('span', 'dpnote', pace, PACES[this.campaign.state.pace].blurb);
+    }
     const foot = el('div', 'dfoot', this.detail);
     const info = el('div', 'dinfo', foot);
     el('span', '', info, m.practice ? 'Practice: it pays no prestige and cannot be lost.' : m.playtest ? 'Playtest: a real fight at a quicker pace. It pays no prestige and is not recorded.' : `Prestige for a win: ${m.basePrestige}, and more for good gunnery, a ship brought home in good order, and a quick finish.`);

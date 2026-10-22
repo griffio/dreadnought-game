@@ -1,3 +1,4 @@
+import { ARCADE } from '../src/sim/pace';
 import { describe, expect, it } from 'vitest';
 import { MineField } from '../src/sim/mines/mines';
 import { battleshipHandling, ShipDynamics } from '../src/sim/ships/dynamics';
@@ -186,6 +187,29 @@ describe('the spotter aircraft', () => {
     expect(plane.ready).toBe(false);
     for (let i = 0; i < 120; i++) plane.update(1);
     expect(plane.ready).toBe(true);
+  });
+
+  it('is hoisted out sooner and flies faster at the arcade pace', () => {
+    const readyAfter = (pace?: typeof ARCADE) => {
+      const plane = new SpotterPlane({ ship: () => ship }, hill, null, () => 40, pace);
+      plane.launch();
+      let t = 0;
+      while (plane.state !== 'flying' && t < 120) {
+        plane.update(0.5);
+        t += 0.5;
+      }
+      const flownIn10 = (() => {
+        const x0 = plane.x;
+        const z0 = plane.z;
+        for (let i = 0; i < 20; i++) plane.update(0.5);
+        return Math.hypot(plane.x - x0, plane.z - z0);
+      })();
+      return { t, flownIn10 };
+    };
+    const real = readyAfter();
+    const quick = readyAfter(ARCADE);
+    expect(quick.t).toBeLessThan(real.t / 2);
+    expect(quick.flownIn10).toBeGreaterThan(real.flownIn10 * 1.3);
   });
 
   it('orbits what it is told to watch, and sees over a hill that hides the target from the ship', () => {

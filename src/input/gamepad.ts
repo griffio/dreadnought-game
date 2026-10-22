@@ -137,10 +137,20 @@ export class GamepadSource implements InputSource {
       out.cycleCamera = true;
     }
     if (r3 || l3) active = true;
-    if (pressedNow(BTN.Y)) out.toggleDamageView = active = true;
+    // Y is the damage report; with the sight held up it is the replay.
+    if (pressedNow(BTN.Y)) {
+      if (sighting) out.replay = true;
+      else out.toggleDamageView = true;
+      active = true;
+    }
     if (pressedNow(BTN.B)) out.ceaseFire = active = true;
     if (pressedNow(BTN.X)) out.torpedoMode = active = true;
-    if (pressedNow(BTN.A)) out.autoSpot = active = true;
+    // A is auto-spot; with the sight held up it is the shell instead (armour-piercing, high-explosive).
+    if (pressedNow(BTN.A)) {
+      if (sighting) out.cycleShell = true;
+      else out.autoSpot = true;
+      active = true;
+    }
     // Pressing in the left stick (with the sight down) sends the spotter aircraft up or brings it home.
     if (!sighting && l3) out.spotter = active = true;
     if (pressedNow(BTN.LB)) out.cycleTarget = -1;

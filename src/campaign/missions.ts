@@ -1,5 +1,6 @@
 import type { ScenarioKind } from '../app/game';
 import type { ShipId } from '../data/ships/roster';
+import { paceById, type PaceId } from '../sim/pace';
 
 /** What a finished sortie reports, as far as the Admiralty's marks go. */
 export interface MissionOutcome {
@@ -16,6 +17,8 @@ export interface MissionOutcome {
   condition: number;
   /** The enemy was left afloat and helpless rather than sunk or surrendered. */
   disabled?: boolean;
+  /** The pace it was fought at (default: the real one). */
+  pace?: PaceId;
 }
 
 export interface MissionDef {
@@ -247,7 +250,7 @@ export function scoreMission(mission: MissionDef, o: MissionOutcome): MissionSco
   if (accuracy >= 0.08) lines.push({ label: `Good gunnery: ${(accuracy * 100).toFixed(0)}% of shells struck`, fraction: 0.15 });
   if (o.condition >= 0.75) lines.push({ label: 'Brought home in good order', fraction: 0.25 });
   else if (o.condition >= 0.5) lines.push({ label: 'Brought home, hurt', fraction: 0.1 });
-  if (o.seconds <= mission.parSeconds) lines.push({ label: 'Finished inside the time', fraction: 0.15 });
+  if (o.seconds <= mission.parSeconds * paceById(o.pace).parScale) lines.push({ label: 'Finished inside the time', fraction: 0.15 });
   if (mission.prefersDisabling && o.disabled) lines.push({ label: 'The enemy left afloat and helpless, as the Admiralty wished', fraction: 0.3 });
   if (o.dishonour > 0) lines.push({ label: `Fired on a ship that had struck: ${o.dishonour} shell${o.dishonour === 1 ? '' : 's'}`, fraction: -0.25 });
   else if (/struck/i.test(o.how)) lines.push({ label: 'Chivalry: the colours were honoured', fraction: 0.1 });

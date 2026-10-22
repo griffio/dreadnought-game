@@ -78,6 +78,7 @@ export class KeyboardSource implements InputSource {
     if (edge('KeyB')) out.ceaseFire = active = true;
     if (edge('KeyF')) out.torpedoMode = active = true;
     if (edge('KeyC')) out.cycleCamera = active = true;
+    if (edge('KeyR')) out.replay = active = true;
     if (edge('KeyM')) out.togglePlot = active = true;
     if (edge('KeyH')) out.toggleDamageView = active = true;
     if (edge('KeyG')) out.smoke = active = true;
@@ -102,6 +103,7 @@ export class KeyboardSource implements InputSource {
     if (edge('Digit1')) out.shell = 'ap';
     if (edge('Digit2')) out.shell = 'he';
     if (edge('Digit3')) out.shell = 'star';
+    if (out.shell !== null) active = true;
     this.pressed.clear();
     return active;
   }

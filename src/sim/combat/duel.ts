@@ -1,4 +1,5 @@
 import { CALM, type Environment } from '../gunnery/ballistics';
+import type { ShellKind } from '../gunnery/shells';
 import { Rng } from '../rng';
 import { handlingFor, ShipDynamics } from '../ships/dynamics';
 import type { ShipFrame } from '../ships/frame';
@@ -13,6 +14,8 @@ export interface DuelSide {
   x: number;
   z: number;
   headingDeg: number;
+  /** The round her main guns are loaded with (default: armour-piercing). */
+  shell?: ShellKind;
 }
 
 export interface DuelOptions {
@@ -61,7 +64,7 @@ export class Duel {
         vx: Math.sin(dynamics.heading) * dynamics.speed,
         vz: -Math.cos(dynamics.heading) * dynamics.speed,
       });
-      return new Combatant({
+      const c = new Combatant({
         id,
         name: side.setup.name,
         ship: side.setup.ship,
@@ -82,6 +85,8 @@ export class Duel {
         neverStrikes: side.setup.neverStrikes,
         plot: side.setup.plot,
       });
+      if (side.shell) c.setShell(side.shell);
+      return c;
     };
     const rng = new Rng(opts.seed);
     this.a = make(1, opts.a, opts.seed * 7 + 1);

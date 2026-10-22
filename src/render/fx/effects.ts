@@ -1,7 +1,14 @@
 import { Rng } from '../../sim/rng';
+import type { ShellKind } from '../../sim/gunnery/shells';
 import { GLOW, LAYER_FUNNEL, LAYER_GUNSMOKE, PUFF, type ParticleSystem } from './particles';
 
 type V3 = readonly [number, number, number];
+
+/** The colour a tracer glows, linear: armour-piercing yellow, high-explosive red. */
+export const TRACER_COLOUR: Record<ShellKind, readonly [number, number, number]> = {
+  ap: [1, 0.9, 0.42],
+  he: [1, 0.2, 0.12],
+};
 
 /** Reference bore the effect sizes are written for, metres (a 12-inch gun). */
 const REF_CALIBER = 0.305;
@@ -172,11 +179,12 @@ export class Effects {
     }
   }
 
-  /** A shell bursting on a ship: flash, fireball, sparks and black smoke. */
-  hitBurst(x: number, y: number, z: number, caliberM: number): void {
-    const s = caliberM / REF_CALIBER;
+  /** A shell bursting on a ship: flash, fireball, sparks and black smoke. A high-explosive burst is bigger and redder. */
+  hitBurst(x: number, y: number, z: number, caliberM: number, shell: ShellKind = 'ap'): void {
+    const he = shell === 'he';
+    const s = (caliberM / REF_CALIBER) * (he ? 1.3 : 1);
     const p = this.particles;
-    p.spawn({ x, y, z, size0: 60 * s, size1: 90 * s, life: 0.22, r: 1, g: 0.8, b: 0.5, alpha: 22, kind: GLOW });
+    p.spawn({ x, y, z, size0: 60 * s, size1: 90 * s, life: 0.22, r: 1, g: he ? 0.55 : 0.8, b: he ? 0.3 : 0.5, alpha: 22, kind: GLOW });
     for (let i = 0; i < 5; i++) {
       p.spawn({
         x,
@@ -430,15 +438,20 @@ export class Effects {
     }
   }
 
-  /** A shell in flight this frame: a bright speck. Call once per frame per shell. */
-  tracer(x: number, y: number, z: number): void {
+  /**
+   * A shell in flight this frame: a bright speck, yellow for armour-piercing and red for high-explosive, so that a salvo's kind can be
+   * read at a glance (the shell buttons on the HUD are the same colours). Call once per frame per shell.
+   */
+  tracer(x: number, y: number, z: number, shell: ShellKind = 'ap'): void {
     if (!this.tracers) return;
-    this.particles.spawn({ x, y, z, size0: 1.8, size1: 1.8, life: 0.02, r: 1, g: 0.85, b: 0.6, alpha: 3, kind: GLOW });
+    const [r, g, b] = TRACER_COLOUR[shell];
+    this.particles.spawn({ x, y, z, size0: 1.8, size1: 1.8, life: 0.02, r, g, b, alpha: shell === 'he' ? 4 : 3, kind: GLOW });
   }
 
-  /** A little smoke left behind by a shell; call every tenth of a second or so. */
-  tracerTrail(x: number, y: number, z: number): void {
+  /** A little smoke left behind by a shell; call every tenth of a second or so. High-explosive leaves a faintly rosy trail. */
+  tracerTrail(x: number, y: number, z: number, shell: ShellKind = 'ap'): void {
     if (!this.tracers) return;
+    const he = shell === 'he';
     this.particles.spawn({
       x,
       y,
@@ -446,9 +459,9 @@ export class Effects {
       size0: 1.5,
       size1: 6,
       life: 2.2,
-      r: 0.85,
-      g: 0.85,
-      b: 0.88,
+      r: he ? 0.95 : 0.85,
+      g: he ? 0.68 : 0.85,
+      b: he ? 0.62 : 0.88,
       alpha: 0.16,
       kind: PUFF,
       wind: 0.5,

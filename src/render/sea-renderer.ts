@@ -122,6 +122,8 @@ export class SeaRenderer {
   /** Time (s) the ocean and clouds have been advanced. Set `frozenTime` to pin it for screenshots. */
   time = 0;
   frozenTime: number | null = null;
+  /** How fast the smoke, spray and flames of the picture run against the clock: a replay in slow motion runs them slow. */
+  fxTimeScale = 1;
 
   private readonly context: GPUCanvasContext;
   private readonly scene = new SceneBlock();
@@ -428,7 +430,7 @@ export class SeaRenderer {
     this.land.update(camera);
     const drawFx = !this.debug.skipFx;
     if (drawFx) {
-      this.particles.update(dtSeconds);
+      this.particles.update(dtSeconds * this.fxTimeScale);
       this.particles.prepare(camera.position[0], camera.position[1], camera.position[2]);
     }
 

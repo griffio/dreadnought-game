@@ -25,7 +25,11 @@ import { Camera } from './render/camera';
 import { runOceanSelfTest } from './render/ocean/ocean-selftest';
 import { RenderScaleController } from './render/render-scale';
 import { DEFAULT_SEA, SeaRenderer, type SeaParams } from './render/sea-renderer';
-import { paceById } from './sim/pace';
+import { paceById, type PaceId } from './sim/pace';
+import { ReplayPlayer, ReplayRecorder, type ReplayTarget } from './app/replay';
+import { ReplayCamera, ShellCamera, type ReplayCameraMode } from './app/shell-camera';
+import { ReplayHud } from './ui/replay-hud';
+import type { WakeSample } from './sim/ships/wake';
 import { FixedStepper } from './sim/time';
 import { DebugOverlay } from './ui/debug-overlay';
 import { BattleHud } from './ui/battle-hud';
@@ -42,6 +46,9 @@ import { TutorialHud } from './ui/tutorial-hud';
 const SIM_HZ = 60;
 /** The director's sight looks out of the foretop: none of her own ship nearer than this to the lens is drawn, metres. */
 const SIGHT_CUTAWAY_M = 14;
+/** How much of the fight the replay starts with: the last half minute when asked for in the fight, a little more from the result screen. */
+const REPLAY_FROM_FIGHT_S = 30;
+const REPLAY_FROM_RESULT_S = 45;
 /** Parameters that do not choose a scenario: a URL with only these opens the front door. */
 const MENU_PARAMS = new Set(['touch', 'debug', 'aniso', 'q', 'msaa', 'scale', 'shadow', 'menu']);
 
@@ -54,12 +61,14 @@ function safeStorage(): Storage | null {
 }
 
 /** The page's own URL with only its cosmetic parameters, and a sortie if there is one (null: the front door). */
-function menuUrl(q: URLSearchParams, missionId: string | null, seed?: number, kind: 'mission' | 'practice' | 'playtest' = 'mission'): string {
+function menuUrl(q: URLSearchParams, missionId: string | null, seed?: number, kind: 'mission' | 'practice' | 'playtest' = 'mission', pace: PaceId = 'real'): string {
   const u = new URL(location.href);
   u.search = '';
   for (const k of MENU_PARAMS) if (q.has(k) && k !== 'menu') u.searchParams.set(k, q.get(k)!);
   if (missionId) {
     u.searchParams.set(kind, missionId);
+    // A sortie is fought at the pace the player has chosen (the real one needs no parameter); practice and the playtest set their own.
+    if (kind === 'mission' && pace !== 'real') u.searchParams.set('pace', pace);
     if (seed !== undefined) u.searchParams.set('gseed', String(seed));
   } else u.searchParams.set('menu', '1');
   return u.toString();
@@ -252,6 +261,8 @@ async function boot(): Promise<void> {
     if (narrows) plot.setRadius(12000);
   }
   let damagePanelOpen = false;
+  // The replay: asked for by a key, a button or the result screen, begun at the top of the next frame (never half-way through one).
+  let wantReplay: number | null = null;
   const battleHud = game
     ? new BattleHud(
         overlayRoot,
@@ -266,6 +277,7 @@ async function boot(): Promise<void> {
           // Return to port: the front door, with the cosmetic parameters carried over.
           location.href = menuUrl(q, null);
         },
+        () => (wantReplay = REPLAY_FROM_RESULT_S),
       )
     : null;
   // The front door, in front of the ship at anchor.
@@ -291,7 +303,7 @@ async function boot(): Promise<void> {
         overlayRoot,
         campaign,
         (m: MissionDef) => {
-          location.href = m.practice ? menuUrl(q, m.id, 1914, 'practice') : m.playtest ? menuUrl(q, m.id, 1914, 'playtest') : menuUrl(q, m.id, 1914 + (campaign.state.missions[m.id]?.attempts ?? 0));
+          location.href = m.practice ? menuUrl(q, m.id, 1914, 'practice') : m.playtest ? menuUrl(q, m.id, 1914, 'playtest') : menuUrl(q, m.id, 1914 + (campaign.state.missions[m.id]?.attempts ?? 0), 'mission', campaign.state.pace);
         },
         (m: MissionDef) => {
           const ship = shipById(m.ship);
@@ -483,6 +495,128 @@ async function boot(): Promise<void> {
   overlay.onSurvey(() => void startSurvey());
   if (q.has('survey')) void startSurvey();
 
+  // ---- the replay and the shell camera ----------------------------------------------------------
+  // The recorder takes a sample of the picture thirty times a second, and every call the game makes to draw a spectacle; the replay
+  // plays them back from any camera, and the shell camera rides each salvo to its splash.
+  const recorder = game ? new ReplayRecorder() : null;
+  if (game && recorder) recorder.install(sea.fx, () => game.simTime);
+  const shellCam = new ShellCamera();
+  let shellCamOn = false;
+  let shellCamRidden = -1;
+  /** How much slower than the clock the game runs: the shell camera slows the last seconds of a flight. */
+  let shellSlow = 1;
+  const replayCam = new ReplayCamera();
+  let replay: { player: ReplayPlayer; saved: { visible: boolean; wake: WakeSample[] }[]; fov: number; frozen: number | null } | null = null;
+  let pendingSeek: number | null = null;
+  const cutShellCam = () => {
+    shellCam.cancel();
+    shellSlow = 1;
+  };
+  // A touch or a click on the picture cuts away from the shell camera.
+  canvas.addEventListener('pointerdown', cutShellCam);
+
+  const enterReplay = (secondsBack: number): void => {
+    if (!game || !recorder || replay || menu) return;
+    const range = recorder.range;
+    if (!range) {
+      game.messages.push('info', 'Nothing to replay yet.', game.simTime);
+      return;
+    }
+    cutShellCam();
+    const actors = game.replayShips;
+    const target: ReplayTarget = {
+      applyShip: (i, shot) => actors[i]?.lay(shot),
+      recordWake: (i, t, shot) => actors[i]?.wakeAt(t, shot),
+      clearWake: () => actors.forEach((a) => a.history.clear()),
+      fire: (name, args) => (sea.fx[name] as (...a: readonly unknown[]) => void)(...args),
+      resetFx: () => sea.fx.particles.clear(),
+      advanceFx: (dt) => sea.fx.particles.update(dt),
+      setClocks: (seaTime, simT) => {
+        // The ocean is pinned to the wave time the ships were riding, so that they float on the sea they did.
+        sea.frozenTime = seaTime;
+        sea.simTime = simT;
+      },
+    };
+    const player = new ReplayPlayer(recorder, target);
+    replay = {
+      player,
+      saved: actors.map((a) => ({ visible: a.instance.visible, wake: [...a.history.samples] })),
+      fov: camera.fovYDeg,
+      frozen: sea.frozenTime,
+    };
+    replayCam.setMode('auto');
+    replayCam.reset();
+    player.seek(Math.max(range.start, range.end - secondsBack));
+    document.body.dataset.replay = '1';
+    replayHud?.show(true);
+  };
+
+  const exitReplay = (): void => {
+    if (!replay || !game) return;
+    const r = replay;
+    game.replayShips.forEach((a, i) => {
+      a.instance.visible = r.saved[i]?.visible ?? a.instance.visible;
+      a.history.samples.length = 0;
+      a.history.samples.push(...(r.saved[i]?.wake ?? []));
+    });
+    sea.frozenTime = r.frozen;
+    sea.fxTimeScale = 1;
+    sea.fx.particles.clear();
+    camera.fovYDeg = r.fov;
+    replay = null;
+    pendingSeek = null;
+    document.body.dataset.replay = '0';
+    replayHud?.show(false);
+    last = performance.now();
+  };
+
+  const replayHud = game
+    ? new ReplayHud(overlayRoot, {
+        toggle: () => {
+          const p = replay?.player;
+          if (!p) return;
+          if (p.t >= p.end - 0.05) {
+            p.seek(p.start);
+            p.playing = true;
+          } else p.playing = !p.playing;
+        },
+        speed: (v) => {
+          if (replay) replay.player.speed = v;
+        },
+        camera: (m: ReplayCameraMode) => replayCam.setMode(m),
+        seek: (seconds) => (pendingSeek = seconds),
+        restart: () => {
+          pendingSeek = 0;
+          if (replay) replay.player.playing = true;
+        },
+        exit: exitReplay,
+      })
+    : null;
+  document.body.dataset.replay = '0';
+
+  /** One frame of a replay: the clock runs (or not) at the chosen speed, the ships are laid as they were, and the replay camera is placed. */
+  const replayFrame = (dt: number): void => {
+    const r = replay!;
+    const p = r.player;
+    if (pendingSeek !== null) {
+      p.seek(p.start + pendingSeek);
+      replayCam.reset();
+      pendingSeek = null;
+    }
+    // The camera slows the clock for the last seconds of a flight and the splash, as the shell camera does in the fight.
+    const slow = p.playing ? replayCam.timeScale : 1;
+    p.advance(dt * slow);
+    sea.fxTimeScale = p.playing ? p.speed * slow : 0;
+    const view = p.view();
+    if (view) {
+      const shot = replayCam.update(dt, view.ships, view.shells);
+      camera.position = shot.position;
+      camera.lookAt(shot.look[0], shot.look[1], shot.look[2]);
+      camera.fovYDeg = shot.fovDeg;
+    }
+    replayHud?.update({ at: p.t - p.start, span: p.end - p.start, playing: p.playing, speed: p.speed, camera: replayCam.mode });
+  };
+
   // ---- the frame loop ---------------------------------------------------------------------------
   let cpuMsPerFrame = 0;
   let last = performance.now();
@@ -491,12 +625,42 @@ async function boot(): Promise<void> {
   let fps = 0;
   window.__frames = 0;
 
+  /** What ends every frame, live or replay: the touch widgets, the camera's matrices, the render, and the render-scale controller. */
+  const endOfFrame = (dt: number, frameMs: number, standing: boolean): void => {
+    widgets.update(dt);
+    input.endFrame();
+
+    camera.update(canvas.clientWidth / Math.max(canvas.clientHeight, 1));
+    // Normally one frame per refresh; the survey renders several to saturate the GPU and expose real cost.
+    const repeats = survey.repeats;
+    const encodeStart = performance.now();
+    for (let i = 0; i < repeats; i++) sea.frame(standing ? 0 : dt / repeats, camera);
+    cpuMsPerFrame = (performance.now() - encodeStart) / repeats;
+    window.__frames = (window.__frames ?? 0) + 1;
+
+    survey.onFrame(frameMs, cpuMsPerFrame);
+    if (fixedScale === null && !survey.running) {
+      const next = scaler.sample(frameMs, dt);
+      if (next !== null) sizer.renderScale = next;
+    }
+  };
+
   const frame = (now: number) => {
     const frameMs = now - last;
     const dt = Math.min(Math.max(frameMs / 1000, 0), 0.1);
     last = now;
 
-    if (!probing) {
+    if (wantReplay !== null) {
+      enterReplay(wantReplay);
+      wantReplay = null;
+    }
+
+    if (!probing && replay) {
+      // A replay: the fight stands still, and nothing the player presses reaches the ship (the replay's own controls take the keys).
+      input.update();
+      replayFrame(dt);
+      endOfFrame(dt, frameMs, false);
+    } else if (!probing) {
       // At the front door the ship lies at anchor and nothing the player presses steers her.
       const intent = menu ? (input.update(), idleIntent) : input.update();
       if (intent.pause) paused = !paused;
@@ -510,7 +674,14 @@ async function boot(): Promise<void> {
       if (intent.togglePlot) plot?.toggle();
       const sightUp = intent.sight && game !== null;
       game?.applyIntent(intent, camera, sightUp);
-      const steps = stepper.advance(paused ? 0 : dt * tscale);
+      // C turns the shell camera on and off (each salvo is followed to its splash); R reviews the fight.
+      if (game && intent.cycleCamera) {
+        shellCamOn = !shellCamOn;
+        if (!shellCamOn) cutShellCam();
+        game.messages.push('info', shellCamOn ? 'SHELL CAM ON: each salvo is followed to its splash. Touch the screen to cut away; C turns it off.' : 'SHELL CAM OFF.', game.simTime);
+      }
+      if (game && intent.replay && wantReplay === null) wantReplay = REPLAY_FROM_FIGHT_S;
+      const steps = stepper.advance(paused ? 0 : dt * tscale * shellSlow);
       for (let i = 0; i < steps; i++) {
         tick++;
         simTime += 1 / SIM_HZ;
@@ -521,6 +692,7 @@ async function boot(): Promise<void> {
       // Camera.
       if (game && player) {
         game.updateRender(stepper.alpha, paused ? 0 : dt);
+        if (!paused) recorder?.sample(game.replaySample());
         const pose = player.instance.pose;
         // At the front door the ship at anchor floats where the player's ship does.
         if (anchoredNow) Object.assign(anchored.get(anchoredNow)!.pose, pose);
@@ -546,6 +718,28 @@ async function boot(): Promise<void> {
           camera.fovYDeg = baseFov;
           chase.update(dt, { x: pose.x, y: pose.heave, z: pose.z, headingDeg: pose.headingDeg }, menu ? [dt * 6, 0] : intent.cameraOrbit, intent.cameraZoom);
         }
+        // The shell camera rides the newest salvo to its splash, slowing the game for the last seconds; the player's own sight, or a touch of
+        // the picture, takes the view back.
+        let shellShot: ReturnType<ShellCamera['update']> = null;
+        if (shellCamOn && !paused) {
+          const shells = game.playerShells();
+          if (sightOwns || intent.cameraOrbit[0] !== 0 || intent.cameraOrbit[1] !== 0 || intent.cameraZoom !== 0) cutShellCam();
+          else {
+            const newest = shells.reduce((m, sh) => Math.max(m, sh.id), -1);
+            if (!shellCam.active && newest > shellCamRidden && !game.outcome) {
+              shellCam.begin(shells);
+              shellCamRidden = shellCam.riding;
+            }
+            shellShot = shellCam.update(dt, shells);
+          }
+        }
+        shellSlow = shellCam.active ? shellCam.timeScale : 1;
+        if (shellShot) {
+          camera.position = shellShot.position;
+          camera.lookAt(shellShot.look[0], shellShot.look[1], shellShot.look[2]);
+          camera.fovYDeg = shellShot.fovDeg;
+        }
+        gunWidgets?.setShellCam(shellCamOn);
         // The HUD projects ships onto the screen, so it needs this frame's view, not last frame's.
         camera.update(canvas.clientWidth / Math.max(canvas.clientHeight, 1));
         const d = player.dynamics;
@@ -571,6 +765,7 @@ async function boot(): Promise<void> {
             dishonour: o.dishonour,
             condition: o.condition,
             disabled: o.disabled,
+            pace: game.pace.id,
           });
         }
         battleHud?.update({
@@ -610,22 +805,7 @@ async function boot(): Promise<void> {
       } else {
         freeCamera?.update(dt);
       }
-      widgets.update(dt);
-      input.endFrame();
-
-      camera.update(canvas.clientWidth / Math.max(canvas.clientHeight, 1));
-      // Normally one frame per refresh; the survey renders several to saturate the GPU and expose real cost.
-      const repeats = survey.repeats;
-      const encodeStart = performance.now();
-      for (let i = 0; i < repeats; i++) sea.frame(paused ? 0 : dt / repeats, camera);
-      cpuMsPerFrame = (performance.now() - encodeStart) / repeats;
-      window.__frames = (window.__frames ?? 0) + 1;
-
-      survey.onFrame(frameMs, cpuMsPerFrame);
-      if (fixedScale === null && !survey.running) {
-        const next = scaler.sample(frameMs, dt);
-        if (next !== null) sizer.renderScale = next;
-      }
+      endOfFrame(dt, frameMs, paused);
     }
 
     fpsFrames++;

@@ -60,7 +60,7 @@ export class BattleHud {
   private dismissed = false;
   private readonly onPanelToggle: () => void;
 
-  constructor(root: HTMLElement, onAgain: () => void, onPanelToggle: () => void, onPort?: () => void) {
+  constructor(root: HTMLElement, onAgain: () => void, onPanelToggle: () => void, onPort?: () => void, onReplay?: () => void) {
     this.onPanelToggle = onPanelToggle;
     this.element = el('div', 'battle');
     const top = el('div', 'btop', this.element);
@@ -90,6 +90,10 @@ export class BattleHud {
     if (onPort) {
       const port = el('button', 'button', buttons, 'Return to port');
       port.addEventListener('click', onPort);
+    }
+    if (onReplay) {
+      const replay = el('button', 'button', buttons, 'Watch replay');
+      replay.addEventListener('click', onReplay);
     }
     const keep = el('button', 'button ghost', buttons, 'Keep watching');
     keep.addEventListener('click', () => {

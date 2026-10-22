@@ -42,6 +42,8 @@ function world(): { k: Knobs; frame: () => TutorialFrame } {
       nextSplashIn: null,
       lastReport: k.lastReport,
       reportAge: 0,
+      shell: 'ap',
+      shellChoice: true,
     } as GunneryStatus,
     shellsFired: k.shellsFired,
     hitsScored: k.hitsScored,

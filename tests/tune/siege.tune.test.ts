@@ -3,6 +3,7 @@ import { narrowsFortSpecs, narrowsMines, narrowsTerrain, NARROWS_START } from '.
 import { DREADNOUGHT_SETUP, QUEEN_ELIZABETH_SETUP } from '../../src/data/ships/fleet';
 import { Siege } from '../../src/sim/combat/siege';
 import { SiegeBot } from '../../src/sim/combat/siege-bot';
+import { paceById } from '../../src/sim/pace';
 
 const proc = (globalThis as unknown as { process: { env: Record<string, string | undefined>; stderr: { write(s: string): void } } }).process;
 const say = (s: string): void => proc.stderr.write(`${s}\n`);
@@ -25,7 +26,7 @@ describe.skipIf(!proc.env.SIEGE)('siege', () => {
     const seeds = Array.from({ length: Number(proc.env.SIEGE) }, (_, i) => i + 1);
     for (const seed of seeds) {
       const t0 = performance.now();
-      const s = new Siege({ seed, terrain, setup: proc.env.SHIP === 'dreadnought' ? DREADNOUGHT_SETUP : QUEEN_ELIZABETH_SETUP, start: NARROWS_START, forts: narrowsFortSpecs(), mines: narrowsMines() });
+      const s = new Siege({ seed, terrain, setup: proc.env.SHIP === 'dreadnought' ? DREADNOUGHT_SETUP : QUEEN_ELIZABETH_SETUP, start: NARROWS_START, forts: narrowsFortSpecs(), mines: narrowsMines(), pace: paceById(proc.env.PACE) });
       const bot = new SiegeBot(s, ROUTE, proc.env.PLAN === 'run' ? 'run' : 'bombard', proc.env.PLANE !== '0', proc.env.STANDOFF ? Number(proc.env.STANDOFF) : { island: 9500, west: 5200, east: 4200, howitzers: 7000 });
       const silencedAt = new Map<string, number>();
       let next = 0;

@@ -206,6 +206,36 @@ describe('the gunnery school', () => {
   });
 });
 
+describe('the pace', () => {
+  it('is the real one until the player chooses, and a save from before the switch has none', () => {
+    expect(new Campaign(new Memory()).state.pace).toBe('real');
+    expect(parseCampaign(JSON.stringify({ version: 1, prestige: 5, missions: {}, refits: {} })).pace).toBe('real');
+    expect(parseCampaign(JSON.stringify({ version: 1, pace: 'warp' })).pace).toBe('real');
+    expect(parseCampaign(JSON.stringify({ version: 1, pace: 'arcade' })).pace).toBe('arcade');
+  });
+
+  it('is remembered across a restart, and starting the campaign afresh keeps it', () => {
+    const store = new Memory();
+    const c = new Campaign(store);
+    c.setPace('arcade');
+    expect(new Campaign(store).state.pace).toBe('arcade');
+    c.reset();
+    expect(c.state.pace).toBe('arcade');
+    expect(new Campaign(store).state.pace).toBe('arcade');
+    expect(c.prestige).toBe(0);
+  });
+
+  it('shortens the time that earns the bonus for a quick finish: a quicker game is judged against a quicker clock', () => {
+    const trials = missionById('trials')!;
+    const timed = (o: Partial<MissionOutcome>) => scoreMission(trials, win(o)).lines.some((l) => l.label === 'Finished inside the time');
+    // Par is 1100 s at the real pace. Ten minutes beats it there, but not a game that is played in half the time.
+    expect(timed({ seconds: 600 })).toBe(true);
+    expect(timed({ seconds: 600, pace: 'arcade' })).toBe(false);
+    expect(timed({ seconds: 400, pace: 'arcade' })).toBe(true);
+    expect(timed({ seconds: 1200 })).toBe(false);
+  });
+});
+
 describe('the refits', () => {
   it('leave the ship as built at level zero, and do not touch the original', () => {
     const same = applyRefits(DREADNOUGHT_SETUP, noRefits());

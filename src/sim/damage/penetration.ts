@@ -39,9 +39,9 @@ export interface PlateResult {
 
 /**
  * A shell meets a plate. `cosTheta` is the cosine of the angle between the shell's path and the plate's normal: 1 is
- * square on, small is a glancing blow.
+ * square on, small is a glancing blow. `armour` scales what the shell can defeat (1 for an armour-piercing shell).
  */
-export function throughPlate(speed: number, massKg: number, diameterMm: number, plateMm: number, cosTheta: number): PlateResult {
+export function throughPlate(speed: number, massKg: number, diameterMm: number, plateMm: number, cosTheta: number, armour = 1): PlateResult {
   if (plateMm < FUZE_TRIGGER_MM) {
     // Light structure: the shell loses a little speed and carries on.
     return { outcome: 'penetrate', effectiveMm: plateMm, speed: speed * (1 - 0.0006 * plateMm) };
@@ -49,7 +49,7 @@ export function throughPlate(speed: number, massKg: number, diameterMm: number, 
   const c = Math.abs(cosTheta);
   const effectiveMm = plateMm / Math.max(c, 0.05);
   if (c < RICOCHET_COS) return { outcome: 'ricochet', effectiveMm, speed };
-  const capacity = penetrationMm(massKg, diameterMm, speed);
+  const capacity = penetrationMm(massKg, diameterMm, speed) * armour;
   if (capacity < effectiveMm) return { outcome: 'shatter', effectiveMm, speed };
   // Energy spent getting through: nothing when the plate is a small fraction of what the shell could do, nearly all of it at the limit.
   const spent = 0.85 * Math.pow(effectiveMm / capacity, 2);
@@ -57,6 +57,6 @@ export function throughPlate(speed: number, massKg: number, diameterMm: number, 
 }
 
 /** Longest range at which a shell fired at `speedAt(range)` still defeats `plateMm` square on (helper for the envelope display). */
-export function canDefeat(massKg: number, diameterMm: number, speed: number, plateMm: number, cosTheta: number): boolean {
-  return throughPlate(speed, massKg, diameterMm, plateMm, cosTheta).outcome === 'penetrate';
+export function canDefeat(massKg: number, diameterMm: number, speed: number, plateMm: number, cosTheta: number, armour = 1): boolean {
+  return throughPlate(speed, massKg, diameterMm, plateMm, cosTheta, armour).outcome === 'penetrate';
 }

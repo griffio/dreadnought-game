@@ -1,4 +1,5 @@
 import { MISSIONS, PRACTICE, missionById, scoreMission, type MissionOutcome, type MissionScore } from './missions';
+import { isPaceId, type PaceId } from '../sim/pace';
 import { noRefits, nextRefitCost, REFITS, type RefitId, type RefitLevels } from './refits';
 
 /** What the player has done: the prestige in hand, how each sortie went, and what the dockyard has fitted. */
@@ -12,6 +13,8 @@ export interface CampaignState {
   unlockAll: boolean;
   /** The practice courses the player has finished. */
   practice: Record<string, boolean>;
+  /** How fast the sorties are fought: the real pace, or the quicker arcade one. */
+  pace: PaceId;
 }
 
 const KEY = 'fall-of-shot.campaign';
@@ -25,7 +28,7 @@ export interface StorageLike {
 }
 
 export function newCampaignState(): CampaignState {
-  return { version: 1, prestige: 0, missions: {}, refits: noRefits(), unlockAll: false, practice: {} };
+  return { version: 1, prestige: 0, missions: {}, refits: noRefits(), unlockAll: false, practice: {}, pace: 'real' };
 }
 
 /** Read what was saved, tolerating anything: a blank slate when it is missing, damaged or from another version. */
@@ -45,7 +48,9 @@ export function parseCampaign(raw: string | null): CampaignState {
     // A save from before the gunnery school has no practice record: nothing finished.
     const practice: Record<string, boolean> = {};
     for (const p of PRACTICE) if (d.practice?.[p.id] === true) practice[p.id] = true;
-    return { version: 1, prestige: Math.max(Math.floor(Number(d.prestige) || 0), 0), missions, refits, unlockAll: d.unlockAll === true, practice };
+    // A save from before the pace switch has no pace: the real one.
+    const pace: PaceId = isPaceId(d.pace) ? d.pace : 'real';
+    return { version: 1, prestige: Math.max(Math.floor(Number(d.prestige) || 0), 0), missions, refits, unlockAll: d.unlockAll === true, practice, pace };
   } catch {
     return fresh;
   }
@@ -143,13 +148,21 @@ export class Campaign {
     this.save();
   }
 
+  /** Choose how fast the sorties are fought. Wiping the campaign afresh does not change it: it is a way of playing, not progress. */
+  setPace(pace: PaceId): void {
+    if (this.state.pace === pace) return;
+    this.state.pace = pace;
+    this.save();
+  }
+
   setUnlockAll(on: boolean): void {
     this.state.unlockAll = on;
     this.save();
   }
 
   reset(): void {
-    this.state = newCampaignState();
+    const pace = this.state.pace;
+    this.state = { ...newCampaignState(), pace };
     this.save();
   }
 }

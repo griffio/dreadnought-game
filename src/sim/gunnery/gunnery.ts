@@ -2,6 +2,7 @@ import type { Rng } from '../rng';
 import { shipPointToWorld, type ShipFrame } from '../ships/frame';
 import type { Terrain } from '../terrain/terrain';
 import { CALM, rangeAtElevation, solveElevation, type Environment, type ShellSpec } from './ballistics';
+import { shellOf, hasShellChoice, type ShellKind } from './shells';
 import { GunBattery, type MuzzleShot, type SalvoStart, type TurretMount, type TurretStatus } from './battery';
 import { azimuthTo, chargeFor, PLUNGE_MIN, solveFiring, type FireSolution, type OwnState } from './fire-control';
 import type { GunSpec } from './guns';
@@ -131,6 +132,9 @@ export interface GunneryStatus {
   nextSplashIn: number | null;
   lastReport: SalvoReport | null;
   reportAge: number;
+  /** The round loaded for the next salvo, and whether the guns have a choice of rounds at all. */
+  shell: ShellKind;
+  shellChoice: boolean;
 }
 
 interface SalvoTrack {
@@ -221,6 +225,10 @@ export class Gunnery {
   private groundTerrain: Terrain | null = null;
   /** The shell as loaded for the present target: a howitzer's charge is chosen by range. */
   private activeShell: ShellSpec;
+  /** The round the player has loaded for the next salvo. */
+  private selected: ShellKind = 'ap';
+  /** The shell each salvo in flight was fired with: the choice is made when the salvo is begun, not as each barrel fires. */
+  private readonly salvoShell = new Map<number, ShellSpec>();
   private airBias = 0;
   private aimEpoch = 0;
   private terrainView = { id: -1, at: Number.NEGATIVE_INFINITY, top: false, deck: false };
@@ -303,6 +311,23 @@ export class Gunnery {
     this.solveTimer = SOLVE_PERIOD;
   }
 
+  /** The round loaded for the next salvo (a gun with no choice always has its own). */
+  get shell(): ShellKind {
+    return this.selected;
+  }
+
+  /** Has this battery a choice of rounds? */
+  get shellChoice(): boolean {
+    return hasShellChoice(this.cfg.gun);
+  }
+
+  /** Load a kind of round: the next salvo to be begun fires it. Salvos already begun, and shells in the air, keep theirs. */
+  setShell(kind: ShellKind): void {
+    this.selected = this.shellChoice ? kind : 'ap';
+    // The two rounds fly alike, so the firing solution does not change; a howitzer's charge is its own business.
+    if (!this.cfg.gun.highAngle) this.activeShell = shellOf(this.cfg.gun, this.selected);
+  }
+
   toggleAutoSpot(): boolean {
     this.autoSpot = !this.autoSpot;
     return this.autoSpot;
@@ -343,7 +368,7 @@ export class Gunnery {
     for (const started of this.battery.drainStartedSalvos()) this.beginSalvo(started, now);
     if (shots.length > 0) this.armedAt = null;
     for (const shot of shots) {
-      this.world.spawn(shot, this.activeShell, this.cfg.shooterId);
+      this.world.spawn(shot, this.salvoShell.get(shot.salvo) ?? this.activeShell, this.cfg.shooterId);
       this.onShot?.(shot);
     }
 
@@ -368,6 +393,8 @@ export class Gunnery {
   }
 
   private beginSalvo(s: SalvoStart, now: number): void {
+    this.salvoShell.set(s.id, this.activeShell);
+    if (this.salvoShell.size > 64) this.salvoShell.delete(this.salvoShell.keys().next().value!);
     this.salvos.set(s.id, {
       id: s.id,
       expected: s.shells,
@@ -395,6 +422,7 @@ export class Gunnery {
 
   private finish(salvo: SalvoTrack): void {
     this.salvos.delete(salvo.id);
+    this.salvoShell.delete(salvo.id);
     if (salvo.falls.length === 0) return;
     const report = reportSalvo(salvo.id, salvo.falls);
     this.lastReport = report;
@@ -629,6 +657,8 @@ export class Gunnery {
       nextSplashIn: oldest && this.solution ? Math.max(this.solution.tof - oldest.state.t, 0) : null,
       lastReport: this.lastReport,
       reportAge: this.now - this.lastReportAt,
+      shell: this.selected,
+      shellChoice: this.shellChoice,
     };
   }
 

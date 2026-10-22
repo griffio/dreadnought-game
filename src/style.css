@@ -714,6 +714,9 @@ body[data-input='touch'] .ghints {
   text-align: center;
   line-height: 1.2;
 }
+.gtouch .gbtn[hidden] {
+  display: none;
+}
 .gtouch .gbtn:active {
   filter: brightness(1.5);
 }
@@ -1055,6 +1058,10 @@ body[data-input='touch'] .ghints {
   display: grid;
   gap: 2px;
 }
+.gruler[hidden],
+.gshell[hidden] {
+  display: none;
+}
 .gruler .rrow {
   display: grid;
   grid-template-columns: 34px 1fr;
@@ -1291,6 +1298,54 @@ body[data-torpedo='1'] .ghints:not(.thints) {
   height: 62px;
 }
 
+/* The shell button: beside the range and deflection steppers, clear of the cards. It is the colour of its tracers. */
+.gtouch .shell {
+  right: calc(var(--gt-right) + 152px);
+  bottom: calc(var(--gt-bottom) + 224px);
+  width: 66px;
+  height: 66px;
+}
+.gtouch .shell[data-kind='ap'] {
+  border-color: #ffd25a;
+  color: #ffd25a;
+}
+.gtouch .shell[data-kind='he'] {
+  border-color: #ff5a3c;
+  background: rgb(255 90 60 / 0.45);
+  color: #fff;
+}
+.gshell {
+  margin: 2px 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+.gshell[data-kind='ap'] {
+  color: #ffd25a;
+}
+.gshell[data-kind='he'] {
+  color: #ff7a5c;
+}
+
+/* The shell camera and replay buttons: top left, under the debug buttons and clear of the telegraph, the log and the cards. */
+.gtouch .shellcam {
+  left: max(16px, env(safe-area-inset-left));
+  top: 120px;
+  width: 62px;
+  height: 62px;
+}
+.gtouch .replaybtn {
+  left: calc(max(16px, env(safe-area-inset-left)) + 72px);
+  top: 120px;
+  width: 62px;
+  height: 62px;
+}
+/* The school's coach sits in that corner: the two buttons wait until it is done. */
+body[data-tutorial='1'] .gtouch .shellcam,
+body[data-tutorial='1'] .gtouch .replaybtn {
+  display: none;
+}
+
 /* The spotter aircraft button: left of SIGHT, clear of the instruments and the cards. */
 .gtouch .spotter {
   right: calc(var(--gt-right) + 228px);
@@ -1507,6 +1562,54 @@ body[data-menu='1'] #overlay > *:not(.menu) {
   font-size: 11px;
   line-height: 1.5;
   opacity: 0.85;
+}
+.dpace {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: center;
+  gap: 4px 12px;
+  margin-top: auto;
+  padding: 8px 0 0;
+  border-top: 1px solid rgb(201 162 75 / 0.25);
+}
+.dpace label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  color: var(--brass);
+}
+.dpchoices {
+  display: flex;
+}
+.dpbtn {
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid rgb(201 162 75 / 0.55);
+  background: rgb(11 22 32 / 0.7);
+  color: var(--parchment);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+}
+.dpbtn:first-child {
+  border-radius: 3px 0 0 3px;
+}
+.dpbtn:last-child {
+  border-radius: 0 3px 3px 0;
+  border-left: 0;
+}
+.dpbtn[data-on='1'] {
+  background: var(--brass);
+  color: var(--ink);
+}
+.dpnote {
+  font-size: 10.5px;
+  line-height: 1.4;
+  opacity: 0.85;
+}
+.dpace + .dfoot {
+  margin-top: 0;
 }
 .dfoot {
   display: flex;
@@ -1806,4 +1909,114 @@ body[data-tut-focus='auto'] .gtouch .gbtn.auto,
 body[data-tut-focus='sight'] .gtouch .gbtn.sight {
   animation: tutpulse 1.3s ease-in-out infinite;
   border-radius: 4px;
+}
+
+/* ---- the replay -------------------------------------------------------------------------------- */
+
+/* While a replay runs nothing is on the screen but the picture and the replay's own controls. */
+body[data-replay='1'] #overlay > *:not(.replay) {
+  display: none !important;
+}
+.replay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+.replay[hidden] {
+  display: none;
+}
+.rptop {
+  position: fixed;
+  top: max(14px, env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  padding: 6px 16px;
+  border: 1px solid rgb(201 162 75 / 0.6);
+  border-radius: 4px;
+  background: rgb(11 22 32 / 0.78);
+}
+.rpbadge {
+  font-size: 13px;
+  letter-spacing: 0.3em;
+  color: var(--brass);
+}
+.rptime {
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  color: var(--parchment);
+}
+.rpbar {
+  position: fixed;
+  left: 50%;
+  bottom: max(14px, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: min(900px, 94vw);
+  display: grid;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid rgb(201 162 75 / 0.6);
+  border-radius: 6px;
+  background: rgb(11 22 32 / 0.86);
+  pointer-events: auto;
+}
+.rpscrub {
+  width: 100%;
+  height: 30px;
+  margin: 0;
+  accent-color: var(--brass);
+  touch-action: none;
+}
+.rprow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+}
+.rpgroup {
+  display: flex;
+  align-items: center;
+}
+.rpgroup label {
+  margin-right: 8px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  color: var(--brass);
+}
+.rpbtn {
+  min-width: 52px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid rgb(201 162 75 / 0.6);
+  background: rgb(11 22 32 / 0.7);
+  color: var(--parchment);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+.rpgroup .rpbtn {
+  min-width: 46px;
+  padding: 0 10px;
+  border-left-width: 0;
+}
+.rpgroup .rpbtn:first-of-type {
+  border-left-width: 1px;
+}
+.rpbtn[data-on='1'] {
+  background: var(--brass);
+  color: var(--ink);
+}
+.rpplay {
+  min-width: 84px;
+  background: rgb(143 209 143 / 0.25);
+  border-color: #8fd18f;
+}
+.rpexit {
+  margin-left: auto;
+  border-color: #e6894f;
+  color: #e6894f;
 }

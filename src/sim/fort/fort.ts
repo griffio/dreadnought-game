@@ -1,3 +1,4 @@
+import { pacedGun, REAL, type Pace } from '../pace';
 import { Rng } from '../rng';
 import { throughPlate } from '../damage/penetration';
 import { DEFAULT_DISPERSION, type DispersionSpec } from '../gunnery/dispersion';
@@ -94,6 +95,8 @@ export interface FortConfig {
   visibilityKm: () => number;
   seed: number;
   id?: number;
+  /** How fast the world runs: her guns reload and swing, and her table plots, at that pace (default: the real one). */
+  pace?: Pace;
 }
 
 /**
@@ -166,17 +169,19 @@ export class Fort implements Contact {
     this.structureHeight = Math.max(top, 3);
 
     const skill = cfg.spec.skill ?? { rangefinderError: 1, dispersion: 1 };
+    const pace = cfg.pace ?? REAL;
     this.gunnery = new Gunnery({
-      gun: cfg.spec.gun,
+      gun: pacedGun(cfg.spec.gun, pace),
       mounts: cfg.mounts,
       rng: new Rng(cfg.seed ^ 0x5bd1e995),
       shooterId: this.id,
       env: cfg.env(),
       rangefinder: {
         ...cfg.spec.rangefinder,
-        angularError: cfg.spec.rangefinder.angularError * skill.rangefinderError,
-        biasFraction: cfg.spec.rangefinder.biasFraction * skill.rangefinderError,
+        angularError: cfg.spec.rangefinder.angularError * skill.rangefinderError * pace.rangefinderError,
+        biasFraction: cfg.spec.rangefinder.biasFraction * skill.rangefinderError * pace.rangefinderError,
       },
+      plot: pace.plot,
       dispersion: scaledDispersion(skill.dispersion),
       visibilityKm: cfg.visibilityKm(),
       directorHeight: cfg.spec.eye,
@@ -313,7 +318,7 @@ export class Fort implements Contact {
     const plate = roof ? e.spec.roofMm : e.spec.frontMm;
     const cos = roof ? Math.max(dive, 0.3) : Math.max(Math.sqrt(1 - dive * dive) * 0.92, 0.3);
     const filler = spec.fillerKg ?? spec.massKg * 0.05;
-    const result = plate > 0 ? throughPlate(speed, spec.massKg, spec.diameterM * 1000, plate, cos) : { outcome: 'penetrate' as const, speed };
+    const result = plate > 0 ? throughPlate(speed, spec.massKg, spec.diameterM * 1000, plate, cos, spec.armour) : { outcome: 'penetrate' as const, speed };
     // An impact-fuzed shell bursts on the structure it strikes; an armour-piercing one only if it gets inside.
     const bursts = result.outcome === 'penetrate' || spec.fuze === 'impact';
     if (bursts && result.outcome === 'penetrate') {

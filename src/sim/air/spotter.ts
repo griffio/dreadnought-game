@@ -1,4 +1,5 @@
 import type { Contact, AerialObserver } from '../gunnery/gunnery';
+import { REAL, type Pace } from '../pace';
 import type { Terrain } from '../terrain/terrain';
 
 export type SpotterState = 'deck' | 'launching' | 'flying' | 'landing';
@@ -51,6 +52,8 @@ export class SpotterPlane implements AerialObserver {
     private readonly terrain: Terrain | null,
     private readonly mineRevealer: ((x: number, z: number, radius: number) => number) | null = null,
     private readonly visibilityKm: () => number = () => 40,
+    /** How fast the world runs: it flies faster, and is hoisted out and in sooner (default: the real pace). */
+    private readonly pace: Pace = REAL,
   ) {}
 
   get flying(): boolean {
@@ -66,7 +69,7 @@ export class SpotterPlane implements AerialObserver {
     if (!this.ready) return false;
     const s = this.host.ship();
     this.state = 'launching';
-    this.timer = SPOTTER.launchSeconds;
+    this.timer = SPOTTER.launchSeconds / this.pace.engines;
     this.x = s.x;
     this.z = s.z;
     this.recalled = false;
@@ -129,15 +132,15 @@ export class SpotterPlane implements AerialObserver {
         let turn = want - this.heading;
         turn = Math.atan2(Math.sin(turn), Math.cos(turn));
         this.heading += Math.min(Math.max(turn, -SPOTTER.turnRate * dt), SPOTTER.turnRate * dt);
-        this.x += Math.sin(this.heading) * SPOTTER.speed * dt;
-        this.z -= Math.cos(this.heading) * SPOTTER.speed * dt;
+        this.x += Math.sin(this.heading) * SPOTTER.speed * this.pace.speed * dt;
+        this.z -= Math.cos(this.heading) * SPOTTER.speed * this.pace.speed * dt;
         if (this.mineRevealer) {
           const n = this.mineRevealer(this.x, this.z, SPOTTER.mineRadius);
           if (n > 0) this.onReveal?.(n);
         }
         if (home && Math.hypot(ship.x - this.x, ship.z - this.z) < 300) {
           this.state = 'landing';
-          this.timer = SPOTTER.landSeconds;
+          this.timer = SPOTTER.landSeconds / this.pace.engines;
         }
         break;
       }

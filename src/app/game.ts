@@ -14,6 +14,8 @@ import { Combatant, setupExtras, type BatteryUnit, type ShipReport } from '../si
 import { PlayerBot } from '../sim/combat/player-bot';
 import type { ShipSetup } from '../sim/combat/setup';
 import { pacedProfile, pacedSetup, REAL, type Pace } from '../sim/pace';
+import { shellKind, type ShellKind } from '../sim/gunnery/shells';
+import type { ReplaySample, ShellShot } from './replay';
 import { penetrationEnvelope, type Envelope } from '../sim/damage/envelope';
 import type { EnemyReadout } from '../ui/gunnery-hud';
 import type { Environment } from '../sim/gunnery/ballistics';
@@ -348,6 +350,7 @@ export class Game {
           visibilityKm: visibility,
           seed: seed + 301 + i * 13,
           id: FIRST_FORT_ID + i,
+          pace,
         });
         fort.setOpponents([this.playerCombatant]);
         this.forts.push(fort);
@@ -360,6 +363,7 @@ export class Game {
         terrain,
         (x, z, r) => this.mines?.reveal(x, z, r) ?? 0,
         visibility,
+        pace,
       );
       this.plane.onReveal = (n) => this.mineSighted(n);
       this.playerCombatant.setAerial(this.plane);
@@ -494,6 +498,29 @@ export class Game {
     return !fort.spec.hidden || fort.revealed(this.simTime) || this.foundForts.has(fort);
   }
 
+  /** The ships in the order a replay records them: the player's first, then the others. */
+  get replayShips(): ShipActor[] {
+    return [this.player, ...this.enemies];
+  }
+
+  /** The player's heavy shells in the air, for the shell camera and the recorder. */
+  playerShells(): ShellShot[] {
+    const out: ShellShot[] = [];
+    for (const b of this.playerCombatant.batteries) {
+      if (b.setup.id !== 'main') continue;
+      for (const sh of b.gunnery.world.shells) {
+        const s = sh.state;
+        out.push({ id: sh.id, x: s.x, y: s.y, z: s.z, vx: s.vx, vy: s.vy, vz: s.vz });
+      }
+    }
+    return out;
+  }
+
+  /** A sample of the picture for the recorder: where every ship is drawn and every turret points, the player's shells, the sea's clock. */
+  replaySample(): ReplaySample {
+    return { t: this.simTime, sea: this.sea.time, ships: this.replayShips.map((a) => a.shot()), shells: this.playerShells() };
+  }
+
   /** The player's main-battery gunnery officer. */
   get gunnery(): Gunnery {
     return this.playerCombatant.main;
@@ -569,7 +596,7 @@ export class Game {
       return;
     }
     const kind = e.outcome?.kind ?? 'burst';
-    if (kind === 'burst') fx.hitBurst(e.x, e.y, e.z, caliber);
+    if (kind === 'burst') fx.hitBurst(e.x, e.y, e.z, caliber, shellKind(e.shell.spec));
     else if (kind === 'shatter') fx.armorSpark(e.x, e.y, e.z, caliber);
     else if (kind === 'ricochet') fx.armorSpark(e.x, e.y, e.z, caliber, true);
   }
@@ -799,6 +826,8 @@ export class Game {
       if (intent.autoSpot) g.toggleAutoSpot();
     }
     if (intent.ceaseFire) g.ceaseFire();
+    if (intent.shell === 'ap' || intent.shell === 'he') this.selectShell(intent.shell);
+    else if (intent.cycleShell) this.selectShell(g.shell === 'ap' ? 'he' : 'ap');
 
     // Without a target the guns follow the sight.
     if (!g.target && sightUp) {
@@ -810,6 +839,23 @@ export class Game {
       const azimuth = Math.atan2(ray[0], -ray[2]);
       g.setManualAim(azimuth, g.elevationForRange(Math.max(range, 400)));
     }
+  }
+
+  /** Load a kind of round in the main guns, for the next salvo, and say so on the bridge. */
+  selectShell(kind: ShellKind): void {
+    const g = this.gunnery;
+    if (!g.shellChoice) {
+      this.say('info', 'Her main guns fire only one round.');
+      return;
+    }
+    if (g.shell === kind) return;
+    this.playerCombatant.setShell(kind);
+    this.say(
+      'info',
+      kind === 'he'
+        ? 'HIGH-EXPLOSIVE loaded: bursts on contact. Good against upperworks, small ships and forts; weak against thick armour.'
+        : 'ARMOUR-PIERCING loaded: pierces armour where the ruler is lit.',
+    );
   }
 
   /** The contact nearest a click, if one is close enough to it on screen. */
@@ -1098,12 +1144,13 @@ export class Game {
         for (const b of c.batteries) {
           for (const shell of b.gunnery.world.shells) {
             const s = shell.state;
-            fx.tracer(s.x, s.y, s.z);
+            const kind = shellKind(shell.spec);
+            fx.tracer(s.x, s.y, s.z, kind);
             const slot = Math.floor(s.t / 0.12);
             const key = shell.id + (c === this.playerCombatant ? 0 : 1e9 * (c.id - 1)) + (b === c.batteries[0] ? 0 : 5e8);
             if (shell.spec.diameterM > 0.2 && this.lastTrail.get(key) !== slot) {
               this.lastTrail.set(key, slot);
-              fx.tracerTrail(s.x, s.y, s.z);
+              fx.tracerTrail(s.x, s.y, s.z, kind);
             }
           }
         }
@@ -1132,12 +1179,13 @@ export class Game {
     for (const f of this.forts) {
       for (const shell of f.gunnery.world.shells) {
         const s = shell.state;
-        fx.tracer(s.x, s.y, s.z);
+        const kind = shellKind(shell.spec);
+        fx.tracer(s.x, s.y, s.z, kind);
         const slot = Math.floor(s.t / 0.12);
         const key = shell.id + 2e9 * (f.id - FIRST_FORT_ID + 1);
         if (shell.spec.diameterM > 0.2 && this.lastTrail.get(key) !== slot) {
           this.lastTrail.set(key, slot);
-          fx.tracerTrail(s.x, s.y, s.z);
+          fx.tracerTrail(s.x, s.y, s.z, kind);
         }
       }
     }

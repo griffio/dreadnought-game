@@ -7,6 +7,7 @@ import { BATTLESHIP_FLOATING, FloatingBody, fitWaterPlane } from '../sim/ships/b
 import { handlingFor, KNOT, ShipDynamics, type HandlingOverrides } from '../sim/ships/dynamics';
 import type { ShipFrame } from '../sim/ships/frame';
 import { WakeHistory, type WakeShip } from '../sim/ships/wake';
+import type { ShipShot } from './replay';
 
 const DEG = Math.PI / 180;
 /** Where the propellers are, as a fraction of the length aft of amidships. */
@@ -122,6 +123,46 @@ export class ShipActor implements WakeSource {
       // A deck mounting is a turret in the picture; a submerged tube has no part to turn.
       if (this.turretIds.has(tube.spec.id)) this.instance.rig.setTurret(tube.spec.id, tube.bearing, 0);
     }
+  }
+
+  // ---- replay -------------------------------------------------------------------------------------
+
+  /** How she looks now, for the recorder: where she is drawn, how she lies in the waves and where her turrets point. */
+  shot(): ShipShot {
+    const p = this.instance.pose;
+    const d = this.dynamics;
+    return {
+      x: p.x,
+      z: p.z,
+      headingDeg: p.headingDeg,
+      heave: p.heave,
+      pitch: p.pitch,
+      roll: p.roll,
+      speed: Math.abs(d.speed),
+      power: Math.abs(d.orderedSpeed) / this.ship.referenceSpeed,
+      visible: this.instance.visible,
+      guns: this.instance.rig.snapshot(),
+    };
+  }
+
+  /** Lay her as a replay says she was. (Her own simulation is not stepped while a replay runs.) */
+  lay(s: ShipShot): void {
+    const p = this.instance.pose;
+    p.x = s.x;
+    p.z = s.z;
+    p.headingDeg = s.headingDeg;
+    p.heave = s.heave;
+    p.pitch = s.pitch;
+    p.roll = s.roll;
+    this.instance.visible = s.visible;
+    this.instance.rig.restore(s.guns);
+  }
+
+  /** Add the wake her stern left at time `t`, as a replay has her. */
+  wakeAt(t: number, s: ShipShot): void {
+    const aft = this.model.length * STERN_FRACTION;
+    const h = s.headingDeg * DEG;
+    this.history.record(s.x - Math.sin(h) * aft, s.z + Math.cos(h) * aft, t, s.speed, s.power);
   }
 
   /** Per rendered frame: interpolate the pose and float on the waves. */
