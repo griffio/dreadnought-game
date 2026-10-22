@@ -219,6 +219,22 @@ describe('systems', () => {
     expect(blown).toBeLessThan(80);
   });
 
+  it('a magazine that blows up marks where along her she is broken: the middle of that magazine', () => {
+    const magA = DREADNOUGHT_DAMAGE.compartments.find((c) => c.id === 'mag-A')!;
+    let seen = 0;
+    for (let seed = 1; seed <= 400 && seen < 3; seed++) {
+      const d = make(seed);
+      expect(d.explosionX).toBe(0);
+      const zone = geom.zones.find((z) => z.kind === 'barbette' && z.ref === 'A')!;
+      d.applyTrace({ kind: 'burst', first: plate('barbette', 0, 279), entry: [56, 3, -3], cosTheta: 1, at: [56, 1, 0], speed: 450, zone, crossed: [], barbettePenetrated: true }, SHELL);
+      if (d.status !== 'exploded') continue;
+      seen++;
+      expect(d.explosionX).toBeCloseTo((magA.x0 + magA.x1) / 2, 6);
+      expect(d.explosionX).toBeGreaterThan(30);
+    }
+    expect(seen).toBeGreaterThan(0);
+  });
+
   it('flash protection removes the risk', () => {
     let blown = 0;
     for (let seed = 1; seed <= 60; seed++) {

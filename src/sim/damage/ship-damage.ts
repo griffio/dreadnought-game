@@ -175,6 +175,8 @@ export class ShipDamage {
   /** Seconds since the ship began to sink, and how deep it has gone below where it floated, metres. */
   sinkTime = 0;
   sunkDepth = 0;
+  /** Where along her (ship-space x, metres from amidships, bow positive) the magazine blew up, when it has: where she breaks in two. */
+  explosionX = 0;
   /** Strike ceremony: counts down from the decision to the colours coming down. */
   private strikeIn: number | null = null;
   /** How the steering gear is: failed means the rudder is jammed where it was. */
@@ -587,6 +589,8 @@ export class ShipDamage {
     this.status = 'exploded';
     this.explosionCause = cause;
     this.sinkTime = 0;
+    const where_ = this.comps.find((c) => c.spec.name === where);
+    this.explosionX = where_ ? (where_.spec.x0 + where_.spec.x1) / 2 : 0;
     this.report('critical', `The ${plain(where)} has blown up!`);
   }
 

@@ -6,7 +6,9 @@ import haze from '../shaders/haze.wgsl?raw';
 import scene from '../shaders/scene.wgsl?raw';
 import shadowChunk from '../shaders/shadow.wgsl?raw';
 import skyMap from '../shaders/sky_map.wgsl?raw';
+import { mulMat4, type Mat4 } from '../../math/mat4';
 import { DECAL_FLOATS, DecalSet, MAX_DECALS } from './decals';
+import { MAX_FIRES, packFires, type FireSite } from './fires';
 import { shipModelMatrix, type ShipPose } from './pose-matrix';
 import { MAX_NODES, ShipRig } from './rig';
 import { SHADOW_FORMAT, type ShadowMap } from './shadow-map';
@@ -17,8 +19,8 @@ import shadowWgsl from './ship_shadow.wgsl?raw';
 import { VERTEX_STRIDE_BYTES } from './forge/mesh-builder';
 import type { WeatheringTextures } from './weathering';
 
-/** Floats in the ShipU uniform: model(16) + nodes(96*16) + three vec4 of paint + a vec4 of clock + the decals. */
-const UNIFORM_FLOATS = 16 + MAX_NODES * 16 + 12 + 4 + MAX_DECALS * DECAL_FLOATS;
+/** Floats in the ShipU uniform: model(16) + nodes(96*16) + three vec4 of paint + a vec4 of clock + the decals + the nodes' char + the fires + the split. */
+const UNIFORM_FLOATS = 16 + MAX_NODES * 16 + 12 + 4 + MAX_DECALS * DECAL_FLOATS + MAX_NODES + MAX_FIRES * 4 + 4;
 
 export interface ShipPaint {
   hull: Vec3;
@@ -45,9 +47,22 @@ export class ShipInstance {
   /** False once the ship has gone under: it is neither drawn nor shadowed. */
   visible = true;
   /** The marks of the hits she has taken, projected onto her hull by the shader. */
-  readonly decals = new DecalSet();
+  readonly decals: DecalSet;
   /** Metres: none of the ship nearer the camera than this is drawn (the director's sight sits among her mast, and sees out of it). */
   cutaway = 0;
+  /** The fires burning in her, ship-space position and intensity (x, y, z, w), the brightest first: they glow on her hull. */
+  readonly fires = new Float32Array(MAX_FIRES * 4);
+  fireCount = 0;
+  /** A ship broken in two shows one part of herself (see ShipU.split); side 0 is the whole ship. */
+  split = { x: 0, side: 0, ragged: 0, age: 0 };
+
+  /**
+   * A ship that has broken in two is drawn as two instances sharing one model: the first shows the part forward of the break and this
+   * second one the part aft. It takes its paint, marks, fires and rig from `parent`, and has a pose and a section matrix of its own.
+   */
+  readonly parent: ShipInstance | null;
+  /** Ship space -> ship space, put after the pose: where this part of a broken ship lies (see section.ts); null when she is whole. */
+  section: Mat4 | null = null;
 
   readonly vertexBuffer: GPUBuffer;
   readonly indexBuffer: GPUBuffer;
@@ -57,27 +72,40 @@ export class ShipInstance {
   readonly shadowGroup: GPUBindGroup;
   private readonly data = new Float32Array(UNIFORM_FLOATS);
   private readonly model = new Float32Array(16);
+  private readonly placed = new Float32Array(16);
 
   constructor(
     device: GPUDevice,
     readonly shipModel: ShipModel,
     mainLayout: GPUBindGroupLayout,
     shadowLayout: GPUBindGroupLayout,
+    parent: ShipInstance | null = null,
   ) {
-    this.rig = new ShipRig(shipModel);
-    this.vertexBuffer = device.createBuffer({
-      label: `${shipModel.name}-vertices`,
-      size: shipModel.vertices.byteLength,
-      usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-    });
-    device.queue.writeBuffer(this.vertexBuffer, 0, shipModel.vertices);
-    this.indexBuffer = device.createBuffer({
-      label: `${shipModel.name}-indices`,
-      size: shipModel.indices.byteLength,
-      usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
-    });
-    device.queue.writeBuffer(this.indexBuffer, 0, shipModel.indices);
-    this.indexCount = shipModel.indices.length;
+    this.parent = parent;
+    if (parent) {
+      // A part of a broken ship: the model's buffers and the rig are the parent's.
+      this.rig = parent.rig;
+      this.vertexBuffer = parent.vertexBuffer;
+      this.indexBuffer = parent.indexBuffer;
+      this.indexCount = parent.indexCount;
+      this.decals = parent.decals;
+    } else {
+      this.rig = new ShipRig(shipModel);
+      this.vertexBuffer = device.createBuffer({
+        label: `${shipModel.name}-vertices`,
+        size: shipModel.vertices.byteLength,
+        usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+      });
+      device.queue.writeBuffer(this.vertexBuffer, 0, shipModel.vertices);
+      this.indexBuffer = device.createBuffer({
+        label: `${shipModel.name}-indices`,
+        size: shipModel.indices.byteLength,
+        usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
+      });
+      device.queue.writeBuffer(this.indexBuffer, 0, shipModel.indices);
+      this.indexCount = shipModel.indices.length;
+      this.decals = new DecalSet();
+    }
     this.uniformBuffer = device.createBuffer({
       label: `${shipModel.name}-uniform`,
       size: UNIFORM_FLOATS * 4,
@@ -90,20 +118,41 @@ export class ShipInstance {
 
   /** Pack pose, rig and paint into the uniform buffer. */
   write(device: GPUDevice, cameraPos: Vec3, simTime = 0): void {
-    this.rig.update();
+    const src = this.parent ?? this;
+    if (!this.parent) this.rig.update();
     shipModelMatrix(this.pose, cameraPos, this.model);
+    // A part of a broken ship is moved about the break after she is placed.
+    const place = this.section ? mulMat4(this.model, this.section, this.placed) : this.model;
     const d = this.data;
-    d.set(this.model, 0);
-    d.set(this.rig.matrices, 16);
+    d.set(place, 0);
+    d.set(src.rig.matrices, 16);
     const o = 16 + MAX_NODES * 16;
-    d.set([...this.paint.hull, 0, ...this.paint.superstructure, 0, this.paint.wetness, this.paint.concrete ? 1 : 0, this.cutaway, 0], o);
-    d.set([simTime, this.paint.weathering ?? 0.55, this.decals.count, 0], o + 12);
-    this.decals.pack(d, o + 16);
+    d.set([...src.paint.hull, 0, ...src.paint.superstructure, 0, src.paint.wetness, src.paint.concrete ? 1 : 0, src.cutaway, 0], o);
+    d.set([simTime, src.paint.weathering ?? 0.55, src.decals.count, src.fireCount], o + 12);
+    src.decals.pack(d, o + 16);
+    const c = o + 16 + MAX_DECALS * DECAL_FLOATS;
+    d.set(src.rig.char, c);
+    d.set(src.fires, c + MAX_NODES);
+    d.set([this.split.x, this.split.side, this.split.ragged, this.split.age], c + MAX_NODES + MAX_FIRES * 4);
     device.queue.writeBuffer(this.uniformBuffer, 0, d);
   }
 
+  /** Set the fires that light her from the damage model's fire sites (any number: the brightest are kept). */
+  setFires(sites: readonly FireSite[]): void {
+    this.fireCount = packFires(sites, this.fires);
+  }
+
+  /** The same from numbers in fours (position, intensity), as a replay keeps them. */
+  setFiresRaw(a: ArrayLike<number>): void {
+    this.fires.fill(0);
+    this.fireCount = Math.min(Math.floor(a.length / 4), MAX_FIRES);
+    for (let i = 0; i < this.fireCount * 4; i++) this.fires[i] = a[i]!;
+  }
+
   destroy(): void {
-    for (const b of [this.vertexBuffer, this.indexBuffer, this.uniformBuffer]) b.destroy();
+    // A part of a broken ship shares its buffers with her parent, who destroys them.
+    const own = this.parent ? [this.uniformBuffer] : [this.vertexBuffer, this.indexBuffer, this.uniformBuffer];
+    for (const b of own) b.destroy();
   }
 }
 
@@ -212,6 +261,14 @@ export class ShipRenderer {
     );
     this.ships.push(ship);
     return ship;
+  }
+
+  /** The second part of a ship that has broken in two: it shares her model, and is hidden until it is wanted. */
+  addSection(parent: ShipInstance): ShipInstance {
+    const part = new ShipInstance(this.device, parent.shipModel, this.mainPipeline.getBindGroupLayout(2), this.shadowPipeline.getBindGroupLayout(1), parent);
+    part.visible = false;
+    this.ships.push(part);
+    return part;
   }
 
   /** Upload every ship's pose and rig. Call once per frame before encoding. */

@@ -162,6 +162,7 @@ export class SeaRenderer {
   ) {
     this.params = params;
     this.fx = new Effects(particles);
+    particles.seaHeight = (x, z) => this.waveHeightAt(x, z);
     this.sceneBuffer = sceneBuffer;
     this.wakeSink = new VertexSink(wake.staging);
     this.timer = GpuTimer.create(gpu.device);
@@ -342,6 +343,11 @@ export class SeaRenderer {
 
   addShip(model: ShipModel): ShipInstance {
     return this.ships.add(model);
+  }
+
+  /** The second half of a ship that is about to break in two (see ShipInstance.parent). */
+  addShipSection(parent: ShipInstance): ShipInstance {
+    return this.ships.addSection(parent);
   }
 
   /** Water surface height (m) at a world position, from the same long waves the GPU renders. */

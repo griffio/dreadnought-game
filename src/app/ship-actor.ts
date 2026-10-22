@@ -1,8 +1,9 @@
 import type { SeaRenderer, WakeSource } from '../render/sea-renderer';
 import type { Combatant } from '../sim/combat/combatant';
-import type { ShipDamage } from '../sim/damage/ship-damage';
+import { TUNING, type ShipDamage } from '../sim/damage/ship-damage';
 import type { ShipModel } from '../render/ships/forge/spec';
 import type { ShipInstance, ShipPaint } from '../render/ships/ship-renderer';
+import { carry, sectionMatrix } from '../render/ships/section';
 import { BATTLESHIP_FLOATING, FloatingBody, fitWaterPlane } from '../sim/ships/buoyancy';
 import { handlingFor, KNOT, ShipDynamics, type HandlingOverrides } from '../sim/ships/dynamics';
 import type { ShipFrame } from '../sim/ships/frame';
@@ -41,6 +42,14 @@ export class ShipActor implements WakeSource {
   combatant: Combatant | null = null;
   private gone = false;
   private readonly turretIds: ReadonlySet<string>;
+  /** The simulation clock, set by the game each frame (the break-up runs on it, so it keeps pace with the game and a replay). */
+  simNow = 0;
+  /** A ship that has broken in two: where she broke (ship-space x) and when (simulation time). */
+  private broken: { x: number; at: number } | null = null;
+  /** The part of her aft of the break, drawn as a second instance of the same model. */
+  private stern: ShipInstance | null = null;
+  /** The split as it was last drawn, for the recorder. */
+  private split: { x: number; age: number; sunk: number } | null = null;
 
   constructor(
     protected readonly sea: SeaRenderer,
@@ -126,6 +135,51 @@ export class ShipActor implements WakeSource {
     }
   }
 
+  /** Her magazine has blown up: she breaks in two at ship-space `x`, and the halves go down apart. */
+  breakUp(x: number, now: number): void {
+    if (this.broken) return;
+    this.broken = { x, at: now };
+  }
+
+  get isBroken(): boolean {
+    return this.broken !== null;
+  }
+
+  /** Where a ship-space point is in the picture now: carried with whichever half of her it lies on if she has broken, else where it was. */
+  carryPoint(p: readonly [number, number, number]): [number, number, number] {
+    const b = this.broken;
+    if (!b) return [p[0], p[1], p[2]];
+    const part = p[0] >= b.x ? this.instance : this.stern;
+    return part?.section ? carry(part.section, p) : [p[0], p[1], p[2]];
+  }
+
+  /** Put the halves of a broken ship where `split` says (or make her whole, for null). */
+  private showSplit(split: { x: number; age: number; sunk: number } | null): void {
+    const bow = this.instance;
+    if (!split) {
+      bow.split = { x: 0, side: 0, ragged: 0, age: 0 };
+      bow.section = null;
+      if (this.stern) {
+        this.stern.visible = false;
+        this.stern.split = { x: 0, side: 0, ragged: 0, age: 0 };
+        this.stern.section = null;
+      }
+      return;
+    }
+    if (!this.stern) {
+      this.stern = this.sea.addShipSection(bow);
+      this.stern.pose = bow.pose;
+    }
+    const stern = this.stern;
+    bow.split = { x: split.x, side: 1, ragged: 2.6, age: split.age };
+    stern.split = { x: split.x, side: -1, ragged: 2.6, age: split.age };
+    bow.section ??= new Float32Array(16);
+    stern.section ??= new Float32Array(16);
+    sectionMatrix(1, split.x, split.age, split.sunk, bow.section);
+    sectionMatrix(-1, split.x, split.age, split.sunk, stern.section);
+    stern.visible = bow.visible;
+  }
+
   /** A shell has struck her: the marks it leaves (scorch, a hole) are carried on her hull from now on. */
   markHit(mark: HitMark, now: number): void {
     for (const d of decalsForHit(mark, now)) this.instance.decals.add(d);
@@ -148,6 +202,8 @@ export class ShipActor implements WakeSource {
       power: Math.abs(d.orderedSpeed) / this.ship.referenceSpeed,
       visible: this.instance.visible,
       guns: this.instance.rig.snapshot(),
+      fires: this.instance.fireCount > 0 ? Array.from(this.instance.fires.subarray(0, this.instance.fireCount * 4)) : undefined,
+      split: this.split ?? undefined,
     };
   }
 
@@ -162,6 +218,8 @@ export class ShipActor implements WakeSource {
     p.roll = s.roll;
     this.instance.visible = s.visible;
     this.instance.rig.restore(s.guns);
+    this.instance.setFiresRaw(s.fires ?? []);
+    this.showSplit(s.split ?? null);
   }
 
   /** Add the wake her stern left at time `t`, as a replay has her. */
@@ -189,15 +247,30 @@ export class ShipActor implements WakeSource {
       this.model.beam,
     );
     const dm = this.damage;
-    this.body.update(dt, plane, d.turnHeel + (dm?.list ?? 0), dm?.trim ?? 0, dm?.sinkage ?? 0);
+    // A ship broken in two does not capsize as a whole: she floats on the waves, and the halves go down by themselves.
+    const whole = this.broken === null;
+    this.body.update(dt, plane, d.turnHeel + (whole ? dm?.list ?? 0 : 0), whole ? dm?.trim ?? 0 : 0, whole ? dm?.sinkage ?? 0 : 0);
     if (dm && dm.status === 'sunk' && !this.gone) {
       this.gone = true;
       this.instance.visible = false;
       this.sea.removeWake(this);
     }
+    if (this.broken) {
+      this.split = { x: this.broken.x, age: this.simNow - this.broken.at, sunk: (dm?.sunkDepth ?? 0) / TUNING.sunkDepth };
+      this.showSplit(this.split);
+    }
     pose.heave = this.body.heave;
     pose.pitch = this.body.pitch;
     pose.roll = this.body.roll;
     this.followGuns();
+    this.showDamage();
+  }
+
+  /** What has happened to her shows on her: a wrecked turret is blown apart and charred, and her fires light her hull. */
+  private showDamage(): void {
+    const dm = this.damage;
+    if (!dm) return;
+    for (const t of dm.turrets) if (t.state === 'destroyed') this.instance.rig.wreck(t.id);
+    this.instance.setFires(dm.fireSites());
   }
 }

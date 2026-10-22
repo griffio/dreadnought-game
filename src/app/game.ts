@@ -255,6 +255,11 @@ export class Game {
   onVoice?: (key: string) => void;
   private readonly sighted = new Set<EnemyShip>();
   private readonly fireCalled = new Set<Combatant>();
+  /** Where ships have gone down, and how fiercely the oil on the water burns there until it does not (seconds of simulation time). */
+  private readonly aftermath: { x: number; z: number; until: number; length: number; power: number }[] = [];
+  private readonly boilClock = new Map<ShipActor, number>();
+  /** The turrets already seen to be wrecked ('<ship id>:<turret>'). */
+  private readonly wreckSeen = new Set<string>();
   private lastSightCheck = Number.NEGATIVE_INFINITY;
 
   constructor(
@@ -561,7 +566,13 @@ export class Game {
     };
     c.onShellEvent = (e: ShellEvent) => this.shellEvent(e);
     c.onHitMark = (mark) => {
-      this.actorOf(c).markHit(mark, this.simTime);
+      const actor = this.actorOf(c);
+      actor.markHit(mark, this.simTime);
+      // A shell that bursts in her is felt through the hull: a shove that rolls and pitches her, in proportion to its weight.
+      if (mark.kind === 'burst' || mark.kind === 'shatter') {
+        const weight = Math.min(mark.caliberM / 0.38, 1.3) * (mark.kind === 'burst' ? 1 : 0.4);
+        actor.body.kick((Math.random() < 0.5 ? -1 : 1) * 0.012 * weight, (Math.random() - 0.5) * 0.008 * weight);
+      }
       if (ours && mark.kind === 'burst') this.cue('hit-taken');
     };
     if (ours) {
@@ -1182,6 +1193,8 @@ export class Game {
   // ---- drawing -----------------------------------------------------------------------------------
 
   updateRender(alpha: number, dt: number): void {
+    this.player.simNow = this.simTime;
+    for (const e of this.enemies) e.simNow = this.simTime;
     this.player.updateRender(alpha, dt);
     for (const e of this.enemies) e.updateRender(alpha, dt);
     const fx = this.sea.fx;
@@ -1215,11 +1228,39 @@ export class Game {
       }
       this.torpedoEffects();
       this.shoreEffects(dt);
+      this.aftermathEffects(dt);
     }
     for (const a of this.fortActors) a.updateRender();
   }
 
   private fortFireClock = 0;
+  private aftermathClock = 0;
+
+  /** The oil that a ship leaves on the water burns for a time, and its smoke stands over the place she went down. */
+  private aftermathEffects(dt: number): void {
+    if (this.aftermath.length === 0) return;
+    this.aftermathClock += dt;
+    if (this.aftermathClock < 0.35) return;
+    this.aftermathClock = 0;
+    const fx = this.sea.fx;
+    for (let i = this.aftermath.length - 1; i >= 0; i--) {
+      const a = this.aftermath[i]!;
+      const left = a.until - this.simTime;
+      if (left <= 0) {
+        this.aftermath.splice(i, 1);
+        continue;
+      }
+      // It burns hard at first and dies away: the intensity falls with the time left.
+      const k = a.power * Math.min(left / 30, 1);
+      const spread = a.length * 0.3;
+      for (let j = 0; j < 2; j++) {
+        const x = a.x + (Math.random() - 0.5) * spread;
+        const z = a.z + (Math.random() - 0.5) * spread;
+        fx.fireSmoke(x, 1.5, z, k);
+        if (Math.random() < 0.7 * k) fx.flame(x, 1.2, z, k);
+      }
+    }
+  }
 
   /** The land's side of the spectacle: shells from the batteries, their wrecks burning, the aircraft, the mines the aircraft has marked. */
   private shoreEffects(dt: number): void {
@@ -1313,10 +1354,15 @@ export class Game {
     const drawn = this.drawnFrame(actor);
     while (clock >= 1) {
       clock -= 1;
-      for (const [fx, fy, fz] of this.funnelTops(c.cfg.ship)) {
+      this.funnelTops(c.cfg.ship).forEach(([fx, fy, fz], i) => {
         const w = shipPointToWorld(drawn, [fx, fy, fz]);
         this.sea.fx.funnelPuff(w[0], w[1], w[2], frame.vx, frame.vz, power);
-      }
+        // A funnel shot through smokes from the hole as well, low down on her side, where the draught is lost.
+        if ((dmg.funnels[i] ?? 1) < 0.5) {
+          const leak = shipPointToWorld(drawn, [fx, fy - 6, fz + (i % 2 === 0 ? 1.8 : -1.8)]);
+          this.sea.fx.funnelPuff(leak[0], leak[1], leak[2], frame.vx, frame.vz, 0.6 * power + 0.3);
+        }
+      });
     }
     this.smokeClock.set(actor, clock);
   }
@@ -1331,14 +1377,46 @@ export class Game {
       this.lastStatus.set(actor, status);
       const drawn = this.drawnFrame(actor);
       if (status === 'exploded') {
-        const w = shipPointToWorld(drawn, [0, 6, 0]);
+        // She breaks in two where the magazine went up.
+        actor.breakUp(dmg.explosionX, this.simTime);
+        const w = shipPointToWorld(drawn, [dmg.explosionX, 6, 0]);
         fx.explosion(w[0], w[1], w[2], c.cfg.ship.hull.length / 160);
       } else if (status === 'sinking' && before !== undefined) {
         this.say('critical', c === this.playerCombatant ? 'We are sinking!' : `${c.name} is going down.`);
         if (c === this.playerCombatant) this.cue('sinking');
+      } else if (status === 'sunk' && before !== undefined) {
+        // She has gone: the water boils over her, wreckage and oil are left, and what burns on the oil goes on burning for a while.
+        const L = c.cfg.ship.hull.length;
+        fx.shipLost(c.x, c.z, L);
+        const burning = before === 'exploded' ? 1 : Math.min(dmg.fires / 3, 1) * 0.7;
+        if (burning > 0.05) this.aftermath.push({ x: c.x, z: c.z, until: this.simTime + 40 + 50 * burning, length: L, power: burning });
       }
     }
     if (status === 'sunk') return;
+
+    // As she settles the water churns white over her hull.
+    if (status === 'sinking' || status === 'exploded') {
+      const clock = (this.boilClock.get(actor) ?? 0) + dt;
+      if (clock >= 0.6) {
+        this.boilClock.set(actor, clock - 0.6);
+        const L = c.cfg.ship.hull.length;
+        const w = shipPointToWorld(this.drawnFrame(actor), [(Math.random() - 0.5) * L * 0.8, 0, (Math.random() - 0.5) * 6]);
+        fx.boil(w[0], w[2], Math.max(L / 150, 0.4));
+      } else this.boilClock.set(actor, clock);
+    }
+
+    // A turret that has just been wrecked goes up in a small explosion of its own.
+    for (const t of dmg.turrets) {
+      if (t.state !== 'destroyed') continue;
+      const key = `${c.id}:${t.id}`;
+      if (this.wreckSeen.has(key)) continue;
+      this.wreckSeen.add(key);
+      const ref = actor.model.turrets.find((r) => r.id === t.id);
+      if (!ref) continue;
+      const pivot = actor.model.nodes[ref.houseNode]!.pivot;
+      const w = shipPointToWorld(this.drawnFrame(actor), [pivot[0], pivot[1] + 2, pivot[2]]);
+      fx.turretWreck(w[0], w[1], w[2], Math.min(Math.max(c.cfg.ship.hull.length / 170, 0.4), 1.2));
+    }
 
     const sites = dmg.fireSites();
     if (sites.length > 0 && c !== this.playerCombatant && !this.fireCalled.has(c)) {
@@ -1355,17 +1433,23 @@ export class Game {
     this.fireClock.set(actor, clock - step);
     const drawn = this.drawnFrame(actor);
     for (const s of sites) {
-      const w = shipPointToWorld(drawn, s.at);
+      const w = shipPointToWorld(drawn, actor.carryPoint(s.at));
       fx.fireSmoke(w[0], w[1], w[2], s.intensity);
       if (s.intensity > 0.2) fx.flame(w[0], w[1], w[2], s.intensity);
     }
     if (status === 'exploded') {
-      // The wreck burns from end to end as she goes down.
+      // The wreck burns from end to end as she goes down, and fiercest along the two torn ends where the magazine went.
       const L = c.cfg.ship.hull.length;
       for (let i = 0; i < 3; i++) {
-        const w = shipPointToWorld(drawn, [(Math.random() - 0.5) * L * 0.7, 4, (Math.random() - 0.5) * 8]);
+        const w = shipPointToWorld(drawn, actor.carryPoint([(Math.random() - 0.5) * L * 0.7, 4, (Math.random() - 0.5) * 8]));
         fx.fireSmoke(w[0], w[1], w[2], 1);
         fx.flame(w[0], w[1], w[2], 1);
+      }
+      for (let i = 0; i < 4; i++) {
+        const side = i % 2 === 0 ? 1 : -1;
+        const w = shipPointToWorld(drawn, actor.carryPoint([dmg.explosionX + side * Math.random() * 6, 1 + Math.random() * 7, (Math.random() - 0.5) * 16]));
+        fx.fireSmoke(w[0], w[1], w[2], 1);
+        if (Math.random() < 0.8) fx.flame(w[0], w[1], w[2], 1);
       }
     }
   }

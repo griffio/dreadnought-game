@@ -331,6 +331,44 @@ fn with_decals(base: Surf, obj: vec3<f32>, n: vec3<f32>, dx: vec3<f32>, dy: vec3
   return s;
 }
 
+// A node that has been burnt: blackened and roughened, with the odd ember still glowing in it. `k` is how far gone it is, 0..1.
+fn charred(base: Surf, obj: vec3<f32>, k: f32) -> Surf {
+  var s = base;
+  let n1 = fbm(obj.xz * 0.9 + obj.y * 1.3, 3);
+  let soot = clamp(k * (0.75 + 0.5 * n1), 0.0, 1.0);
+  s.albedo = mix(s.albedo, vec3<f32>(0.018, 0.015, 0.013), soot * 0.92);
+  // Where the paint has burnt off the bare plate rusts red-brown.
+  s.albedo = mix(s.albedo, vec3<f32>(0.11, 0.045, 0.028), k * smoothstep(0.62, 0.8, n1) * 0.5);
+  s.rough = mix(s.rough, 0.95, soot);
+  s.metal = s.metal * (1.0 - soot);
+  let t = ship.clock.x;
+  let ember = smoothstep(0.72, 0.9, fbm(obj.xz * 2.7 + obj.y * 3.1 + vec2<f32>(t * 0.05, 0.0), 3)) * k;
+  s.emit += vec3<f32>(1.0, 0.3, 0.06) * ember * (0.5 + 0.35 * sin(t * 4.0 + obj.x * 3.0 + obj.z * 2.0));
+  return s;
+}
+
+// The fires burning in her light the plating round them: a warm flickering glow that falls away over some metres, strongest on the
+// surfaces that face the fire. `n` is the surface normal in ship space.
+fn fire_glow(obj: vec3<f32>, n: vec3<f32>) -> vec3<f32> {
+  let count = i32(ship.clock.w);
+  var glow = vec3<f32>(0.0);
+  let t = ship.clock.x;
+  for (var i = 0; i < count; i++) {
+    let f = ship.fires[i];
+    let d = f.xyz - obj;
+    let dist = length(d);
+    let reach = 1.8 + 3.2 * f.w;
+    if (dist > reach * 2.2) {
+      continue;
+    }
+    let facing = 0.35 + 0.65 * saturate(dot(n, d / max(dist, 0.05)) * 0.5 + 0.5);
+    let flicker = 0.72 + 0.18 * sin(t * 9.0 + f32(i) * 3.1 + dist * 0.8) + 0.1 * sin(t * 23.0 + f32(i) * 7.7);
+    let k = exp(-(dist * dist) / (reach * reach)) * f.w * flicker * facing;
+    glow += vec3<f32>(1.0, 0.4, 0.09) * k;
+  }
+  return glow;
+}
+
 fn ggx_specular(n: vec3<f32>, v: vec3<f32>, l: vec3<f32>, rough: f32, f0: vec3<f32>) -> vec3<f32> {
   let h = normalize(l + v);
   let nl = max(dot(n, l), 0.0);
@@ -357,15 +395,39 @@ fn fs(in: VOut) -> @location(0) vec4<f32> {
   if (ship.misc.z > 0.0 && length(in.rel) < ship.misc.z) {
     discard;
   }
+  // A ship that has broken in two is drawn as two parts, each cut off along a torn line: the part on the far side of it is not drawn.
+  var tear_char = 0.0;
+  var tear_heat = 0.0;
+  if (ship.split.y != 0.0) {
+    let rag = (fbm(in.obj.zy * vec2<f32>(0.55, 0.8) + vec2<f32>(in.obj.y * 0.3, 7.0), 3) - 0.5) * 2.0 * ship.split.z;
+    let into = (in.obj.x - ship.split.x - rag) * ship.split.y;
+    if (into < 0.0) {
+      discard;
+    }
+    tear_char = 1.0 - smoothstep(0.0, 3.5, into);
+    // The torn edge is red-hot at first, and cools over half a minute.
+    tear_heat = (1.0 - smoothstep(0.0, 1.6, into)) * exp(-ship.split.w / 30.0);
+  }
   let v = normalize(-in.rel);
   var n = normalize(in.nrm);
   if (dot(n, v) < 0.0) {
     n = -n; // thin sheets (decks, plates) are lit from both sides
   }
   var s = surface(in.ids, in.aux, in.obj, in.nrm_obj, dpx, dpy);
+  if (tear_char > 0.0) {
+    s = charred(s, in.obj, tear_char * 0.95);
+    s.emit += vec3<f32>(1.0, 0.32, 0.06) * tear_heat * (0.55 + 0.45 * fbm(in.obj.zy * 1.7 + vec2<f32>(ship.clock.x * 0.2, 0.0), 3)) * 1.6;
+  }
   // Hits leave their marks on the static hull (node 0), not on a turret, which turns under them.
   if ((in.ids & 0xffu) == 0u) {
     s = with_decals(s, in.obj, normalize(in.nrm_obj), dpx, dpy);
+  }
+
+  // A turret that has been wrecked, and anything else burnt, is black, and the odd ember glows in it.
+  let node = in.ids & 0xffu;
+  let burnt = ship.node_char[node >> 2u][node & 3u];
+  if (burnt > 0.0) {
+    s = charred(s, in.obj, burnt);
   }
 
   // Wet lower hull: darker and glossier where spray and waves reach.
@@ -398,6 +460,7 @@ fn fs(in: VOut) -> @location(0) vec4<f32> {
   col += env * (f0 + (vec3<f32>(1.0) - f0) * pow(1.0 - nv, 5.0)) * gloss * s.ao;
 
   col += s.emit / scene.sun_irr.w;
+  col += fire_glow(in.obj, normalize(in.nrm_obj)) * 0.3 / scene.sun_irr.w;
   col = apply_haze(col, in.rel);
   return vec4<f32>(col, 1.0);
 }

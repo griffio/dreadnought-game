@@ -13,6 +13,9 @@ export class Camera {
   position: Vec3 = [0, 25, 0];
   yawDeg = 0;
   pitchDeg = 0;
+  /** A shake added to the aim when the view is built (see CameraShake); the camera's own yaw and pitch are left as they were. */
+  shakeYawDeg = 0;
+  shakePitchDeg = 0;
   fovYDeg = 60;
   near = 0.3;
 
@@ -65,8 +68,8 @@ export class Camera {
 
   update(aspect: number): void {
     this.aspect = aspect;
-    const yaw = degToRad(this.yawDeg);
-    const pitch = degToRad(Math.min(Math.max(this.pitchDeg, -89), 89));
+    const yaw = degToRad(this.yawDeg + this.shakeYawDeg);
+    const pitch = degToRad(Math.min(Math.max(this.pitchDeg + this.shakePitchDeg, -89), 89));
     this.forward = [Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch)];
     this.right = normalize(cross(this.forward, [0, 1, 0]));
     this.up = cross(this.right, this.forward);

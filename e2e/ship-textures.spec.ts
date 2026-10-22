@@ -109,6 +109,11 @@ test('ship damage: a hit through the damage model leaves its mark on the hull; a
   // Three shells at her starboard side, the ship's heading being north: two burst inside, one breaks up on the belt.
   const result = await page.evaluate(() => {
     const g = window.__game!;
+    // This is about the marks on the hull alone: a hit also shoves the ship and starts fires that light her, which would move and
+    // brighten the picture for reasons of their own (the damage-effects spec has those).
+    g.player.body.kick = () => {};
+    // (And a hit in a magazine can blow her up and break her in two, which is a picture of its own.)
+    (g.playerCombatant.damage as unknown as { spec: { flashProtection: number } }).spec.flashProtection = 1;
     const shell = g.playerSetup.batteries[0]!.gun.shell;
     const fire = (z: number, y: number, speed: number, descent: number) => {
       const a = (descent * Math.PI) / 180;
@@ -118,7 +123,11 @@ test('ship damage: a hit through the damage model leaves its mark on the hull; a
       const live = { id: 1, salvo: 1, shooter: 99, spec: shell, state: { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, t: 0 }, passed: [] };
       return g.playerCombatant.resolveHit({ shell: live, from: [12.5 - vx * dt, y - vy * dt, z], to: [12.5, y, z], velocity: [vx, vy, 0] } as never)?.kind;
     };
-    return { kinds: [fire(-26, 3.2, 700, 2), fire(-19, 2.4, 700, 2), fire(-9, 2.6, 300, 30)], count: g.player.instance.decals.count };
+    const kinds = [fire(-26, 3.2, 700, 2), fire(-19, 2.4, 700, 2), fire(-9, 2.6, 300, 30)];
+    const damage = g.playerCombatant.damage;
+    for (const c of damage.comps) c.fire = 0;
+    for (const t of damage.turrets) t.fire = 0;
+    return { kinds, count: g.player.instance.decals.count };
   });
   expect(result.kinds).toEqual(['burst', 'burst', 'shatter']);
   // Two bursts make a hole and a scorch each, the shattered shell a soft scorch.

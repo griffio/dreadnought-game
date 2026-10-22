@@ -29,6 +29,7 @@ import { paceById, type PaceId } from './sim/pace';
 import { ReplayPlayer, ReplayRecorder, type ReplayTarget } from './app/replay';
 import { AudioDirector } from './audio/director';
 import { AudioEngine } from './audio/engine';
+import { CameraShake } from './app/shake';
 import { tapEffects } from './audio/tap';
 import { VoiceDirector } from './audio/voice';
 import { ReplayCamera, ShellCamera, type ReplayCameraMode } from './app/shell-camera';
@@ -281,6 +282,21 @@ async function boot(): Promise<void> {
     document.addEventListener('visibilitychange', () => (document.hidden ? audio.suspend() : audioHeld ? undefined : audio.resume()));
   }
 
+  // ---- shake ------------------------------------------------------------------------------------
+  // The picture is shaken by a heavy gun fired near the camera, a shell bursting on the ship, a magazine going up: the same spectacles the
+  // sound listens to, so a replay shakes as well.
+  const shake = new CameraShake();
+  try {
+    shake.enabled = window.localStorage.getItem('fall-of-shot.shake') !== '0';
+  } catch {
+    /* private window: on */
+  }
+  if (game) {
+    tapEffects(sea.fx, (name, args) => {
+      if (!rebuilding) shake.onEffect(name, args, camera.position);
+    });
+  }
+
   const touchCapable = q.get('touch') === '1' || (navigator.maxTouchPoints > 0 && window.matchMedia('(pointer: coarse)').matches);
   const initialDevice: InputDevice = touchCapable ? 'touch' : 'keyboard-mouse';
   document.body.dataset.input = initialDevice;
@@ -428,6 +444,14 @@ async function boot(): Promise<void> {
         gunWidgets?.setSound(!on);
       }, !audio.muted);
       controls.addToggle('Crew voices', (on) => audio.setVoices(on), audio.voicesOn);
+      controls.addToggle('Camera shake', (on) => {
+        shake.enabled = on;
+        try {
+          window.localStorage.setItem('fall-of-shot.shake', on ? '1' : '0');
+        } catch {
+          /* private window */
+        }
+      }, shake.enabled);
     }
     controls.addToggle('Sweep turrets', (on) => (player.sweep = on));
     controls.addToggle('Wheel returns to midships (touch)', (on) => (widgets.autoCenter = on), true);
@@ -728,6 +752,9 @@ async function boot(): Promise<void> {
     last = now;
 
     voices?.update(paused ? 0 : dt);
+    shake.update(dt, camera.fovYDeg);
+    camera.shakeYawDeg = shake.yawDeg;
+    camera.shakePitchDeg = shake.pitchDeg;
 
     if (wantReplay !== null) {
       enterReplay(wantReplay);

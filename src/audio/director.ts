@@ -193,6 +193,13 @@ export class AudioDirector {
         break;
       }
       // A torpedo's hit is heard as the shell splash and the burst that `torpedoBlast` itself draws.
+      case 'turretWreck': {
+        const [x, , z] = args as [number, number, number];
+        this.at('hit-burst', x, z, REACH.hit, 1, 0.9);
+        this.at('hit-clang', x, z, REACH.hit, 0.8);
+        this.out.duck(0.4, 1.5);
+        break;
+      }
       case 'torpedoLaunch': {
         const [x, z] = args as [number, number];
         this.at('torpedo-launch', x, z, REACH.splash, 0.85);

@@ -12,6 +12,8 @@ const FLOATS_PER_INSTANCE = 12;
 
 export const PUFF = 0;
 export const GLOW = 1;
+/** A flat film lying on the water (an oil slick): drawn as a horizontal ragged patch, not a billboard. */
+export const FILM = 2;
 
 /** Groups of particles that can be switched off together: the default layer is always drawn. */
 export const LAYER_DEFAULT = 0;
@@ -38,7 +40,7 @@ export interface ParticleDesc {
   b: number;
   /** Puff opacity, or glow intensity. */
   alpha: number;
-  kind?: typeof PUFF | typeof GLOW;
+  kind?: typeof PUFF | typeof GLOW | typeof FILM;
   /** Velocity decay, 1/s. */
   drag?: number;
   /** Downward acceleration, m/s^2 (negative rises). */
@@ -53,6 +55,8 @@ export interface ParticleDesc {
   dieAtSea?: boolean;
   /** Which layer it belongs to (default LAYER_DEFAULT). */
   layer?: number;
+  /** Ride the sea: its height is the water's here, plus this many metres (its vertical motion is ignored). For what floats. */
+  seaOffset?: number;
 }
 
 interface Particle {
@@ -82,6 +86,8 @@ interface Particle {
   layer: number;
   seed: number;
   d2: number;
+  /** Height above the water it floats at, or NaN when it does not ride the sea. */
+  float: number;
 }
 
 export interface ParticleSystemOptions {
@@ -103,6 +109,8 @@ export interface ParticleSystemOptions {
 export class ParticleSystem {
   /** Wind velocity the smoke and spray are carried along at, m/s. */
   wind: [number, number] = [0, 0];
+  /** The height of the water at a point, for the particles that float on it. */
+  seaHeight: ((x: number, z: number) => number) | null = null;
 
   private readonly live: Particle[] = [];
   private readonly staging = new Float32Array(MAX_PARTICLES * FLOATS_PER_INSTANCE);
@@ -232,6 +240,7 @@ export class ParticleSystem {
       layer: d.layer ?? LAYER_DEFAULT,
       seed: (this.seedCounter++ * 0.6180339887) % 1,
       d2: 0,
+      float: d.seaOffset ?? Number.NaN,
     });
   }
 
@@ -261,7 +270,8 @@ export class ParticleSystem {
       p.y += p.vy * dt;
       p.z += p.vz * dt;
       p.rot += p.spin * dt;
-      if (p.dieAtSea && p.y < 0 && p.vy < 0) continue;
+      if (p.float === p.float) p.y = (this.seaHeight ? this.seaHeight(p.x, p.z) : 0) + p.float;
+      else if (p.dieAtSea && p.y < 0 && p.vy < 0) continue;
       this.live[w++] = p;
     }
     this.live.length = w;

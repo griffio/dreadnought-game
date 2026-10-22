@@ -1,6 +1,6 @@
 import { Rng } from '../../sim/rng';
 import type { ShellKind } from '../../sim/gunnery/shells';
-import { GLOW, LAYER_FUNNEL, LAYER_GUNSMOKE, PUFF, type ParticleSystem } from './particles';
+import { FILM, GLOW, LAYER_FUNNEL, LAYER_GUNSMOKE, PUFF, type ParticleSystem } from './particles';
 
 type V3 = readonly [number, number, number];
 
@@ -434,6 +434,210 @@ export class Effects {
         kind: GLOW,
         gravity: G,
         drag: 0.2,
+      });
+    }
+  }
+
+  /**
+   * A turret blown apart: a flash, burning fragments thrown up and falling back, lumps of steel that fall into the sea, and a black
+   * column. (A small cousin of a magazine going up.)
+   */
+  turretWreck(x: number, y: number, z: number, scale = 1): void {
+    const p = this.particles;
+    p.spawn({ x, y, z, size0: 36 * scale, size1: 70 * scale, life: 0.3, r: 1, g: 0.78, b: 0.45, alpha: 22, kind: GLOW });
+    for (let i = 0; i < 20; i++) {
+      const a = this.r(0, Math.PI * 2);
+      const sp = this.r(10, 42) * scale;
+      const up = this.r(0.3, 1);
+      p.spawn({
+        x,
+        y,
+        z,
+        vx: Math.cos(a) * sp * (1 - up * 0.4),
+        vy: sp * up + 8,
+        vz: Math.sin(a) * sp * (1 - up * 0.4),
+        size0: 1.8,
+        size1: 1,
+        life: this.r(1.2, 2.8),
+        r: 1,
+        g: 0.55,
+        b: 0.2,
+        alpha: 7,
+        kind: GLOW,
+        gravity: G,
+        drag: 0.15,
+      });
+    }
+    // Lumps of plate and gun, dark against the sky, that go up and come down into the sea.
+    for (let i = 0; i < 7; i++) {
+      const a = this.r(0, Math.PI * 2);
+      const sp = this.r(6, 22) * scale;
+      p.spawn({
+        x,
+        y: y + 1,
+        z,
+        vx: Math.cos(a) * sp,
+        vy: this.r(14, 34) * Math.sqrt(scale),
+        vz: Math.sin(a) * sp,
+        size0: this.r(1.2, 3.2),
+        size1: this.r(1, 2.6),
+        life: this.r(3, 6),
+        r: 0.03,
+        g: 0.03,
+        b: 0.032,
+        alpha: 0.95,
+        gravity: G,
+        drag: 0.05,
+        dieAtSea: true,
+        spin: this.g() * 2,
+      });
+    }
+    for (let i = 0; i < 6; i++) {
+      p.spawn({
+        x: x + this.g() * 2 * scale,
+        y: y + this.r(0, 3),
+        z: z + this.g() * 2 * scale,
+        vx: this.g() * 2,
+        vy: this.r(4, 12) * scale,
+        vz: this.g() * 2,
+        size0: this.r(5, 9) * scale,
+        size1: this.r(22, 44) * scale,
+        life: this.r(9, 17),
+        r: 0.04,
+        g: 0.037,
+        b: 0.035,
+        alpha: this.r(0.6, 0.85),
+        drag: 0.5,
+        gravity: -0.9,
+        wind: 0.25,
+        spin: this.g() * 0.15,
+        fadeIn: 0.2,
+        fadePow: 1.2,
+      });
+    }
+  }
+
+  /** Foam and bubbles churning up where a sinking ship's hull is settling: a patch of white water that spreads and fades. */
+  boil(x: number, z: number, size = 1): void {
+    const p = this.particles;
+    for (let i = 0; i < 5; i++) {
+      const a = this.r(0, Math.PI * 2);
+      const d = this.r(0, 6) * size;
+      p.spawn({
+        x: x + Math.cos(a) * d,
+        y: 0.3,
+        z: z + Math.sin(a) * d,
+        vx: Math.cos(a) * this.r(0.2, 1.2),
+        vy: 0,
+        vz: Math.sin(a) * this.r(0.2, 1.2),
+        size0: this.r(3, 6) * size,
+        size1: this.r(12, 26) * size,
+        life: this.r(5, 9),
+        r: 0.9,
+        g: 0.95,
+        b: 0.97,
+        alpha: 0.4,
+        drag: 0.5,
+        fadeIn: 0.3,
+        fadePow: 1.5,
+        seaOffset: 0.3,
+        spin: this.g() * 0.1,
+      });
+    }
+    // Now and then an upwelling of spray as the air comes out of her.
+    if (this.rng.next() < 0.5) {
+      p.spawn({ x, y: 1, z, vy: this.r(5, 11), vx: this.g(), vz: this.g(), size0: 3 * size, size1: 11 * size, life: this.r(1.5, 2.6), r: 0.93, g: 0.96, b: 1, alpha: 0.5, gravity: 7, drag: 0.4, fadePow: 1.2, dieAtSea: true });
+    }
+  }
+
+  /**
+   * A ship has gone under: a great upwelling and a ring of spray where she was, a field of wreckage and lumps of oily scum that float for
+   * minutes, and a slick that spreads across the water. `length` is hers, metres.
+   */
+  shipLost(x: number, z: number, length: number): void {
+    const p = this.particles;
+    const s = Math.max(length / 160, 0.35);
+    // The last upwelling.
+    for (let i = 0; i < 9; i++) {
+      const a = this.r(0, Math.PI * 2);
+      const d = this.r(0, 0.18) * length;
+      p.spawn({
+        x: x + Math.cos(a) * d,
+        y: 0.3,
+        z: z + Math.sin(a) * d,
+        vx: Math.cos(a) * this.r(0.5, 2.5),
+        vy: 0,
+        vz: Math.sin(a) * this.r(0.5, 2.5),
+        size0: this.r(8, 14) * s,
+        size1: this.r(40, 70) * s,
+        life: this.r(9, 16),
+        r: 0.9,
+        g: 0.95,
+        b: 0.97,
+        alpha: 0.5,
+        drag: 0.35,
+        fadeIn: 0.3,
+        fadePow: 1.4,
+        seaOffset: 0.3,
+      });
+    }
+    for (let i = 0; i < 7; i++) {
+      const a = this.r(0, Math.PI * 2);
+      const sp = this.r(2, 7) * s;
+      p.spawn({ x, y: 1, z, vx: Math.cos(a) * sp, vy: this.r(10, 22) * Math.sqrt(s), vz: Math.sin(a) * sp, size0: 6 * s, size1: 24 * s, life: this.r(2.5, 4.5), r: 0.93, g: 0.96, b: 1, alpha: 0.55, gravity: 9, drag: 0.3, fadePow: 1.3, dieAtSea: true });
+    }
+    // Wreckage: planks, boats, lockers, the odd drum, strewn about and drifting with the wind. It floats, riding the waves.
+    const wreck = Math.round(26 * Math.sqrt(s));
+    for (let i = 0; i < wreck; i++) {
+      const a = this.r(0, Math.PI * 2);
+      const d = Math.sqrt(this.rng.next()) * 0.55 * length;
+      const wood = this.rng.next() < 0.35;
+      p.spawn({
+        x: x + Math.cos(a) * d,
+        y: 0,
+        z: z + Math.sin(a) * d,
+        vx: Math.cos(a) * this.r(0.1, 0.5),
+        vz: Math.sin(a) * this.r(0.1, 0.5),
+        size0: this.r(1.1, 3.4),
+        size1: this.r(1.0, 3),
+        life: this.r(110, 190),
+        r: wood ? 0.13 : 0.03,
+        g: wood ? 0.08 : 0.03,
+        b: wood ? 0.045 : 0.032,
+        alpha: 0.95,
+        drag: 0.25,
+        wind: 0.02,
+        spin: this.g() * 0.05,
+        fadePow: 0.35,
+        seaOffset: this.r(0.1, 0.35),
+      });
+    }
+    // The oil: a few big patches that spread, and a scatter of small ones round them.
+    const slicks = Math.round(8 + 6 * Math.sqrt(s));
+    for (let i = 0; i < slicks; i++) {
+      const a = this.r(0, Math.PI * 2);
+      const d = Math.sqrt(this.rng.next()) * 0.4 * length;
+      const big = i < 5;
+      p.spawn({
+        x: x + Math.cos(a) * d,
+        y: 0,
+        z: z + Math.sin(a) * d,
+        vx: this.g() * 0.25,
+        vz: this.g() * 0.25,
+        size0: (big ? this.r(18, 30) : this.r(8, 16)) * s,
+        size1: (big ? this.r(90, 130) : this.r(30, 60)) * s,
+        life: this.r(200, 280),
+        r: 0.02,
+        g: 0.017,
+        b: 0.014,
+        alpha: big ? 0.62 : 0.45,
+        drag: 0.3,
+        wind: 0.03,
+        spin: this.g() * 0.01,
+        fadeIn: 3,
+        fadePow: 0.6,
+        kind: FILM,
+        seaOffset: 0.22,
       });
     }
   }

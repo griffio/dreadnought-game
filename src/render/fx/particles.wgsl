@@ -3,6 +3,7 @@
 //   kind 0: a lit puff (smoke, spray, mist) with noise-ragged edges.
 //   kind 1: a glow (flash, fire, sparks, tracer). Its colour is what ends up on screen after exposure, so a muzzle
 //           flash is just as bright at noon as at dusk, and is allowed to exceed 1 to feed the bloom.
+//   kind 2: a film (an oil slick): a ragged patch lying flat on the water, dark, with a faint rainbow sheen.
 // Requires common, scene, sky_map, env, noise, haze. Group 1 = sky, sampler, noise.
 const EARTH_R: f32 = 6371000.0;
 
@@ -38,13 +39,17 @@ fn vs(@builtin(vertex_index) vi: u32, inst: Inst) -> VOut {
 
   // Never smaller than a couple of pixels, so distant bursts and shells stay visible.
   let metres_per_px = dist * 2.0 * scene.cam_up.w / scene.screen.y;
-  let min_px = select(2.0, 3.0, inst.misc.y > 0.5);
+  let glow = inst.misc.y > 0.5 && inst.misc.y < 1.5;
+  let film = inst.misc.y > 1.5;
+  let min_px = select(2.0, 3.0, glow);
   let size = max(inst.pos_size.w, metres_per_px * min_px);
 
   let cs = cos(inst.misc.x);
   let sn = sin(inst.misc.x);
   let rc = vec2<f32>(corner.x * cs - corner.y * sn, corner.x * sn + corner.y * cs);
-  let world = c + (scene.cam_right.xyz * rc.x + scene.cam_up.xyz * rc.y) * (size * 0.5);
+  // A film lies on the water; everything else faces the camera.
+  let on_water = vec3<f32>(rc.x, 0.0, rc.y) * (size * 0.5);
+  let world = c + select((scene.cam_right.xyz * rc.x + scene.cam_up.xyz * rc.y) * (size * 0.5), on_water, film);
 
   var out: VOut;
   out.pos = scene.view_proj * vec4<f32>(world, 1.0);
@@ -52,7 +57,7 @@ fn vs(@builtin(vertex_index) vi: u32, inst: Inst) -> VOut {
   // Puffs very close to the camera fade out rather than filling the screen; glows keep their strength.
   // A puff that would cover most of the screen fades out and is then dropped: it is mostly overdraw and hides everything.
   let cover = size / (metres_per_px * scene.screen.y);
-  let near_fade = select(smoothstep(4.0, 40.0, dist) * (1.0 - smoothstep(0.5, 1.1, cover)), 1.0, inst.misc.y > 0.5);
+  let near_fade = select(smoothstep(4.0, 40.0, dist) * (1.0 - smoothstep(0.5, 1.1, cover)), 1.0, glow);
   out.color = vec4<f32>(inst.color.rgb, inst.color.a * near_fade);
   if (near_fade <= 0.0) {
     out.pos = vec4<f32>(2.0, 2.0, 2.0, 1.0);
@@ -73,6 +78,21 @@ fn fs(in: VOut) -> @location(0) vec4<f32> {
   let r2 = dot(in.uv, in.uv);
   if (r2 > 1.0) {
     discard;
+  }
+  if (in.kind > 1.5) {
+    // The slick: a disc whose edge the noise has torn, translucent, nearly black, with the sky's colours showing faintly in it.
+    let rr = sqrt(r2);
+    let sdf = vec2<f32>(in.seed * 9.1, in.seed * 4.7);
+    let f1 = noise_lookup(in.uv * 1.6 + sdf);
+    let f2 = noise_lookup(in.uv * 4.1 + sdf.yx + vec2<f32>(3.0, 8.0));
+    let edge_f = (1.0 - rr) + (f1 - 0.5) * 0.9 + (f2 - 0.5) * 0.35;
+    let af = smoothstep(0.0, 0.35, edge_f) * in.color.a * (0.6 + 0.4 * f2);
+    if (af < 0.004) {
+      discard;
+    }
+    let sheen = 0.5 + 0.5 * cos(6.2831853 * (vec3<f32>(0.0, 0.33, 0.67) + f1 * 1.5 + in.seed));
+    let cf = (in.color.rgb + sheen * scene.ambient.rgb * 0.22) * in.haze_tr + in.haze_add;
+    return vec4<f32>(cf * af, af);
   }
   if (in.kind > 0.5) {
     // Hot core inside a soft halo; additive (alpha 0 in premultiplied blending).
