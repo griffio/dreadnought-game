@@ -20,7 +20,7 @@ test('campaign: the front door lists the sorties, locks the later ones, and sail
   await page.goto('/?scale=0.5');
   await waitForFrames(page, 10);
   await expect(page.locator('.menu')).toBeVisible();
-  await expect(page.locator('.mcard')).toHaveCount(7);
+  await expect(page.locator('.mcard')).toHaveCount(8);
   await expect(page.locator('.mprestige b')).toHaveText('0');
   // The fight's own HUD is out of the way.
   await expect(page.locator('.helm')).toBeHidden();

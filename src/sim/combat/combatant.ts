@@ -70,6 +70,8 @@ export interface CombatantConfig {
   rudderJam?: number;
   /** She never strikes her colours. */
   neverStrikes?: boolean;
+  /** How fast her plotting table works (default: the real one). */
+  plot?: ShipSetup['plot'];
 }
 
 export interface BatteryUnit {
@@ -183,6 +185,7 @@ export class Combatant implements Contact {
         visibilityKm: cfg.visibilityKm(),
         directorHeight: cfg.directorHeight ?? 24,
         solvePeriod: cfg.solvePeriod,
+        plot: cfg.plot,
       });
       if (cfg.terrain) gunnery.terrain = cfg.terrain;
       const smoke = cfg.smoke;
@@ -558,7 +561,7 @@ export class Combatant implements Contact {
 }
 
 /** The parts of a ship setup that the combatant's config carries as separate fields. */
-export function setupExtras(setup: ShipSetup): Pick<CombatantConfig, 'tubes' | 'torpedo' | 'small' | 'autoTarget' | 'jams' | 'wounds' | 'rudderJam' | 'neverStrikes'> {
+export function setupExtras(setup: ShipSetup): Pick<CombatantConfig, 'tubes' | 'torpedo' | 'small' | 'autoTarget' | 'jams' | 'wounds' | 'rudderJam' | 'neverStrikes' | 'plot'> {
   return {
     tubes: setup.tubes,
     torpedo: setup.torpedo,
@@ -568,6 +571,7 @@ export function setupExtras(setup: ShipSetup): Pick<CombatantConfig, 'tubes' | '
     wounds: setup.wounds,
     rudderJam: setup.rudderJam,
     neverStrikes: setup.neverStrikes,
+    plot: setup.plot,
   };
 }
 

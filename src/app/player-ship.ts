@@ -21,6 +21,8 @@ export class PlayerShip extends ShipActor {
   /** Hold every turret at this train (from rest) and elevation, degrees, when not sweeping. */
   hold: { trainDeg: number; elevDeg: number } | null = null;
   battery: GunBattery | null = null;
+  /** How fast a held rudder key turns the wheel, in rudder-lock fractions per second. */
+  helmRate = HELM_RATE;
 
   private clock = 0;
   private salvoStart = Number.POSITIVE_INFINITY;
@@ -40,7 +42,7 @@ export class PlayerShip extends ShipActor {
 
   /** Advance the simulation by one fixed step, with held-key rudder from the intent. */
   stepWithHelm(dt: number, intent: Intent, simTime: number): void {
-    if (intent.helmRate !== 0) this.dynamics.setRudderOrder(this.dynamics.rudderOrder + intent.helmRate * HELM_RATE * dt);
+    if (intent.helmRate !== 0) this.dynamics.setRudderOrder(this.dynamics.rudderOrder + intent.helmRate * this.helmRate * dt);
     this.step(dt, simTime);
   }
 

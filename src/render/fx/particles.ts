@@ -13,6 +13,13 @@ const FLOATS_PER_INSTANCE = 12;
 export const PUFF = 0;
 export const GLOW = 1;
 
+/** Groups of particles that can be switched off together: the default layer is always drawn. */
+export const LAYER_DEFAULT = 0;
+export const LAYER_FUNNEL = 1;
+const LAYERS = 4;
+/** How quickly a layer fades out or back in, per second. */
+const LAYER_FADE_RATE = 3;
+
 /** What to spawn. Positions are world metres (float64); velocities m/s; colours linear. */
 export interface ParticleDesc {
   x: number;
@@ -43,6 +50,8 @@ export interface ParticleDesc {
   fadePow?: number;
   /** Kill the particle when it reaches the sea (spray falling back). */
   dieAtSea?: boolean;
+  /** Which layer it belongs to (default LAYER_DEFAULT). */
+  layer?: number;
 }
 
 interface Particle {
@@ -69,6 +78,7 @@ interface Particle {
   fadeIn: number;
   fadePow: number;
   dieAtSea: boolean;
+  layer: number;
   seed: number;
   d2: number;
 }
@@ -98,6 +108,9 @@ export class ParticleSystem {
   private readonly buffer: GPUBuffer;
   private count = 0;
   private seedCounter = 1;
+  /** How much of each layer shows now and how much it is heading for, 0..1. */
+  private readonly layerShown = new Array<number>(LAYERS).fill(1);
+  private readonly layerWanted = new Array<number>(LAYERS).fill(1);
 
   private constructor(
     private readonly device: GPUDevice,
@@ -171,6 +184,16 @@ export class ParticleSystem {
     return this.live.length;
   }
 
+  /** How many particles went into the last frame's draw (those of a hidden layer do not). */
+  get drawn(): number {
+    return this.count;
+  }
+
+  /** Fade a layer out or back in. */
+  setLayerVisible(layer: number, visible: boolean): void {
+    this.layerWanted[layer] = visible ? 1 : 0;
+  }
+
   clear(): void {
     this.live.length = 0;
     this.count = 0;
@@ -205,6 +228,7 @@ export class ParticleSystem {
       fadeIn: d.fadeIn ?? 0,
       fadePow: d.fadePow ?? 1,
       dieAtSea: d.dieAtSea ?? false,
+      layer: d.layer ?? LAYER_DEFAULT,
       seed: (this.seedCounter++ * 0.6180339887) % 1,
       d2: 0,
     });
@@ -212,6 +236,10 @@ export class ParticleSystem {
 
   update(dt: number): void {
     if (dt <= 0) return;
+    for (let i = 0; i < LAYERS; i++) {
+      const step = LAYER_FADE_RATE * dt;
+      this.layerShown[i] = this.layerShown[i]! + Math.min(Math.max(this.layerWanted[i]! - this.layerShown[i]!, -step), step);
+    }
     const [wx, wz] = this.wind;
     let w = 0;
     for (let i = 0; i < this.live.length; i++) {
@@ -250,7 +278,11 @@ export class ParticleSystem {
     live.sort((a, b) => b.d2 - a.d2);
     const f = this.staging;
     let o = 0;
+    let n = 0;
     for (const p of live) {
+      const shown = this.layerShown[p.layer]!;
+      if (shown <= 0.004) continue;
+      n++;
       const t = p.age / p.life;
       const ease = 1 - (1 - t) * (1 - t);
       const fade = (p.fadeIn > 0 ? Math.min(p.age / p.fadeIn, 1) : 1) * Math.pow(1 - t, p.fadePow);
@@ -261,13 +293,13 @@ export class ParticleSystem {
       f[o++] = p.r;
       f[o++] = p.g;
       f[o++] = p.b;
-      f[o++] = p.alpha * fade;
+      f[o++] = p.alpha * fade * shown;
       f[o++] = p.rot;
       f[o++] = p.kind;
       f[o++] = p.seed;
       f[o++] = 0;
     }
-    this.count = live.length;
+    this.count = n;
     if (this.count > 0) this.device.queue.writeBuffer(this.buffer, 0, f, 0, this.count * FLOATS_PER_INSTANCE);
   }
 

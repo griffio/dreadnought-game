@@ -1,5 +1,5 @@
 import type { Campaign } from '../campaign/campaign';
-import { MISSIONS, PRACTICE, type MissionDef } from '../campaign/missions';
+import { MISSIONS, PLAYTESTS, PRACTICE, type MissionDef } from '../campaign/missions';
 import { REFITS, nextRefitCost } from '../campaign/refits';
 import { isShipId, shipById } from '../data/ships/roster';
 
@@ -132,6 +132,21 @@ export class CampaignMenu {
         this.refresh();
       });
     }
+    for (const t of PLAYTESTS) {
+      const card = el('button', 'mcard playtest', this.list);
+      card.dataset.id = t.id;
+      card.dataset.selected = t.id === this.selected ? '1' : '0';
+      card.dataset.locked = '0';
+      el('span', 'mnum', card, 'P');
+      const text = el('span', 'mtext', card);
+      el('b', '', text, t.title);
+      el('i', '', text, 'A quicker game: try it');
+      el('span', 'mstate', card, 'PLAYTEST');
+      card.addEventListener('click', () => {
+        this.selected = t.id;
+        this.refresh();
+      });
+    }
     MISSIONS.forEach((m, i) => {
       const open = this.campaign.isUnlocked(m.id);
       const rec = this.campaign.state.missions[m.id];
@@ -152,8 +167,8 @@ export class CampaignMenu {
   }
 
   private renderDetail(): void {
-    const m = [...PRACTICE, ...MISSIONS].find((x) => x.id === this.selected) ?? MISSIONS[0]!;
-    const open = m.practice === true || this.campaign.isUnlocked(m.id);
+    const m = [...PRACTICE, ...PLAYTESTS, ...MISSIONS].find((x) => x.id === this.selected) ?? MISSIONS[0]!;
+    const open = m.practice === true || m.playtest === true || this.campaign.isUnlocked(m.id);
     const rec = this.campaign.state.missions[m.id];
     this.detail.replaceChildren();
     el('div', 'dhead', this.detail, `${m.title.toUpperCase()}`);
@@ -186,9 +201,9 @@ export class CampaignMenu {
     for (const h of m.hints) el('li', '', hints, h);
     const foot = el('div', 'dfoot', this.detail);
     const info = el('div', 'dinfo', foot);
-    el('span', '', info, m.practice ? 'Practice: it pays no prestige and cannot be lost.' : `Prestige for a win: ${m.basePrestige}, and more for good gunnery, a ship brought home in good order, and a quick finish.`);
+    el('span', '', info, m.practice ? 'Practice: it pays no prestige and cannot be lost.' : m.playtest ? 'Playtest: a real fight at a quicker pace. It pays no prestige and is not recorded.' : `Prestige for a win: ${m.basePrestige}, and more for good gunnery, a ship brought home in good order, and a quick finish.`);
     if (rec && rec.wins > 0) el('span', 'dbest', info, `Best: ${rec.best} prestige`);
-    const sail = el('button', 'msail', foot, open ? (m.practice ? 'BEGIN' : 'SAIL') : 'LOCKED');
+    const sail = el('button', 'msail', foot, open ? (m.practice || m.playtest ? 'BEGIN' : 'SAIL') : 'LOCKED');
     sail.disabled = !open;
     if (!open) {
       const prev = MISSIONS[MISSIONS.findIndex((x) => x.id === m.id) - 1];

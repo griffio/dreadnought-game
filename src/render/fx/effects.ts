@@ -1,5 +1,5 @@
 import { Rng } from '../../sim/rng';
-import { GLOW, PUFF, type ParticleSystem } from './particles';
+import { GLOW, LAYER_FUNNEL, PUFF, type ParticleSystem } from './particles';
 
 type V3 = readonly [number, number, number];
 
@@ -269,7 +269,13 @@ export class Effects {
       spin: this.g() * 0.1,
       fadeIn: 0.25,
       fadePow: 1.2,
+      layer: LAYER_FUNNEL,
     });
+  }
+
+  /** Funnel smoke shows or fades away (the director's sight looks through the place where it streams). */
+  showFunnelSmoke(on: boolean): void {
+    this.particles.setLayerVisible(LAYER_FUNNEL, on);
   }
 
   /** One puff of black smoke from a fire aboard. `intensity` (0..1) is how fierce the fire is. */

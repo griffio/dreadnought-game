@@ -1,6 +1,7 @@
 import type { ShipSpec } from '../../render/ships/forge/spec';
 import type { Wounds } from '../damage/ship-damage';
 import type { DamageSpec } from '../damage/spec';
+import type { PlotTiming } from '../gunnery/gunnery';
 import type { RangefinderSpec } from '../gunnery/rangefinder';
 import type { HandlingOverrides } from '../ships/dynamics';
 import type { TorpedoSpec, TubeSpec } from '../torpedo/spec';
@@ -34,4 +35,6 @@ export interface ShipSetup {
   rudderJam?: number;
   /** She will never haul down her colours. */
   neverStrikes?: boolean;
+  /** How fast her plotting table works, where it is not the real one's pace (see pace.ts). */
+  plot?: PlotTiming;
 }

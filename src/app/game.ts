@@ -13,6 +13,7 @@ import { Arena } from '../sim/combat/arena';
 import { Combatant, setupExtras, type BatteryUnit, type ShipReport } from '../sim/combat/combatant';
 import { PlayerBot } from '../sim/combat/player-bot';
 import type { ShipSetup } from '../sim/combat/setup';
+import { pacedProfile, pacedSetup, REAL, type Pace } from '../sim/pace';
 import { penetrationEnvelope, type Envelope } from '../sim/damage/envelope';
 import type { EnemyReadout } from '../ui/gunnery-hud';
 import type { Environment } from '../sim/gunnery/ballistics';
@@ -140,6 +141,8 @@ export interface GameOptions {
   player?: ShipId;
   /** Practice: nobody can win or lose, and no result is shown (the gunnery school). */
   practice?: boolean;
+  /** How fast the world runs (default: the real pace). */
+  pace?: Pace;
 }
 
 /** A wake the bridge has seen, running at the ship. */
@@ -229,6 +232,7 @@ export class Game {
   private readonly setups = new Map<Combatant, ShipSetup>();
   private readonly seed: number;
   private readonly practice: boolean;
+  readonly pace: Pace;
   /** The ship she commands, as built and refitted. */
   readonly playerSetup: ShipSetup;
   readonly playerEntry: ShipEntry;
@@ -251,6 +255,8 @@ export class Game {
     const seed = options.seed ?? 1914;
     this.seed = seed;
     this.practice = options.practice === true;
+    const pace = options.pace ?? REAL;
+    this.pace = pace;
     const env = () => this.environment();
     const visibility = () => sea.params.visibilityKm;
     this.arena = new Arena(seed);
@@ -260,10 +266,11 @@ export class Game {
 
     // The ship as the dockyard has left her.
     this.playerEntry = shipById(options.player);
-    const playerSetup = applyRefits(this.playerEntry.setup, options.refits ?? noRefits());
+    const playerSetup = pacedSetup(applyRefits(this.playerEntry.setup, options.refits ?? noRefits()), pace);
     this.playerSetup = playerSetup;
     this.director = playerSetup.director ?? DIRECTOR_DEFAULT;
     this.player = new PlayerShip(sea, buildShip(this.playerEntry.spec), playerSetup.maxSpeedKn, this.playerEntry.paint, playerSetup.handling);
+    this.player.helmRate *= pace.rudder;
     this.playerCombatant = new Combatant({
       id: PLAYER_ID,
       name: playerSetup.name,
@@ -291,6 +298,7 @@ export class Game {
     this.actors.set(this.playerCombatant, this.player);
     this.setups.set(this.playerCombatant, playerSetup);
     if (options.objective) this.messages.push('info', `ORDERS: ${options.objective}`, 0);
+    if (pace !== REAL) this.messages.push('info', `${pace.name.toUpperCase()} PACE: faster ships, quicker guns and a quicker plot.`, 0);
 
     if (scenario) {
       const fleet = this.enemyFleet(scenario);
@@ -305,19 +313,20 @@ export class Game {
           smoke: this.arena.smoke,
           paint: entry.paint,
         };
+        const enemySetup = pacedSetup(entry.setup, pace);
         const enemy = new EnemyShip(
           sea,
-          entry.setup,
+          enemySetup,
           buildShip(entry.spec),
           entry.id === 'destroyer'
             ? { ...common, captain: 'destroyer' }
-            : { ...common, plan: scenario.plan ?? null, profile: scenario.enemyProfile ?? entry.profile ?? AGGRESSIVE },
+            : { ...common, plan: scenario.plan ?? null, profile: pacedProfile(scenario.enemyProfile ?? entry.profile ?? AGGRESSIVE, pace) },
         );
         enemy.combatant.setOpponents([this.playerCombatant]);
         this.enemies.push(enemy);
         this.arena.add(enemy.combatant);
         this.actors.set(enemy.combatant, enemy);
-        this.setups.set(enemy.combatant, entry.setup);
+        this.setups.set(enemy.combatant, enemySetup);
       });
       this.playerCombatant.setOpponents(this.enemies.map((e) => e.combatant));
     }

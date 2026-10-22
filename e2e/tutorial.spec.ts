@@ -81,7 +81,7 @@ test('gunnery school: the coach takes a real fight from the first click to the l
   // Do what it says: E adds range and Q takes it off.
   if (await page.evaluate(() => window.__tutorial!.step.id === 'correct')) {
     await page.keyboard.press(/OVER/.test(advice ?? '') ? 'KeyQ' : 'KeyE');
-    await expect.poll(() => step(page), { timeout: 20_000 }).toBe('bracket');
+    await expect.poll(() => step(page), { timeout: 20_000 }).toMatch(/^(bracket|auto)$/);
   }
 
   // Keep firing, correcting by what the card says, until she is bracketed.
@@ -99,11 +99,12 @@ test('gunnery school: the coach takes a real fight from the first click to the l
     }, { timeout: 240_000, intervals: [2_500] })
     .not.toBe('bracket');
 
-  // 7. Auto-spot.
+  // 7. Auto-spot. (A lucky player may have sunk her already: the coach then passes over the shooting that is left, so the steps
+  // that follow are still reached in order, only the hits step is passed over.)
   expect(await step(page)).toBe('auto');
   expect(await page.evaluate(() => document.body.dataset.tutFocus)).toBe('auto');
   await page.keyboard.press('KeyT');
-  await expect.poll(() => step(page), { timeout: 10_000 }).toBe('hits');
+  await expect.poll(() => step(page), { timeout: 10_000 }).toMatch(/^(hits|sight)$/);
   await page.screenshot({ path: 'test-results/tutorial-4-hits.png' });
 
   // 8. Three hits, firing salvo after salvo with the gunnery officer spotting.

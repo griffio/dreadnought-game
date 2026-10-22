@@ -39,6 +39,8 @@ export interface MissionDef {
   prefersDisabling?: boolean;
   /** Practice, not a sortie: no prestige, never locked, and nothing to win. */
   practice?: boolean;
+  /** A playtest of a variant of the game: always open, pays nothing and is not recorded, but is fought for real and can be lost. */
+  playtest?: boolean;
   /** URL parameters that set the scenario up (merged under whatever the player's own URL says). */
   params?: Record<string, string>;
 }
@@ -184,6 +186,33 @@ export const PRACTICE: readonly MissionDef[] = [
     params: { passive: '1', tspd: '6', tcrs: '70', trange: '9', tbrg: '-18' },
   },
 ];
+
+/** Experiments with the pace of the game: a single duel each, always open, outside the campaign. */
+export const PLAYTESTS: readonly MissionDef[] = [
+  {
+    id: 'arcade-duel',
+    title: 'Arcade Duel',
+    year: 1916,
+    place: 'The North Sea',
+    scenario: 'duel',
+    ship: 'queen-elizabeth',
+    playtest: true,
+    briefing: [
+      'A test of a quicker game. The ships are half as fast again, and gather way and turn about three times as quickly; the guns reload in half the time and swing round more than twice as fast, and the plot finds a target’s course in twenty seconds instead of a minute.',
+      'SMS Kaiser is alone, and she fights at the same pace as you. She closes to four or five miles and trades broadsides there, so the shells land in ten seconds and more of them get through.',
+      'Nothing here is recorded and no prestige is paid. Tell the Admiralty whether it feels better.',
+    ],
+    objective: 'Sink SMS Kaiser or compel her to strike.',
+    hints: ['Everything is quicker: the fight is over in three minutes or so, not twenty.', 'Hard over turns the ship through a right angle in about twenty seconds, three times quicker than before. Use it to spoil her aim.', 'The plot settles in about twenty seconds. Fire early and correct on the fall of shot.'],
+    basePrestige: 0,
+    parSeconds: 0,
+    params: { pace: 'arcade', foe: 'kaiser', trange: '9', tbrg: '-25', vis: '25' },
+  },
+];
+
+export function playtestById(id: string | null | undefined): MissionDef | null {
+  return PLAYTESTS.find((m) => m.id === id) ?? null;
+}
 
 export function practiceById(id: string | null | undefined): MissionDef | null {
   return PRACTICE.find((m) => m.id === id) ?? null;

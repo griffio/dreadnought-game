@@ -80,6 +80,7 @@ export class Duel {
         wounds: side.setup.wounds,
         rudderJam: side.setup.rudderJam,
         neverStrikes: side.setup.neverStrikes,
+        plot: side.setup.plot,
       });
     };
     const rng = new Rng(opts.seed);

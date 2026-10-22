@@ -68,6 +68,20 @@ export interface AerialObserver {
 
 export type TrackQuality = 'none' | 'lost' | 'plotting' | 'settling' | 'settled' | 'turned';
 
+/**
+ * How fast the plotting table works: seconds between rangings, how long the plot remembers and how heavily it weights the recent
+ * fixes, how much error it assumes in one fix (metres), and how long a plot must be before it says anything about speed.
+ */
+export interface PlotTiming {
+  rangingPeriod: number;
+  window: number;
+  tau: number;
+  positionSigma: number;
+  minSpan: number;
+}
+
+export const REAL_PLOT: PlotTiming = { rangingPeriod: 2, window: 75, tau: 40, positionSigma: 40, minSpan: 6 };
+
 export interface GunneryConfig {
   gun: GunSpec;
   mounts: readonly TurretMount[];
@@ -86,6 +100,8 @@ export interface GunneryConfig {
   directorHeight: number;
   /** Seconds between new firing solutions (a ship's table is slower than a player at the controls wants). Default 0.2. */
   solvePeriod?: number;
+  /** How fast the table plots (default: REAL_PLOT). */
+  plot?: PlotTiming;
 }
 
 export interface GunneryStatus {
@@ -130,7 +146,6 @@ interface SalvoTrack {
 
 /** Below this much of the view coming through, the target cannot be ranged at all. */
 const MIN_CLARITY = 0.12;
-const RANGEFINDER_PERIOD = 2;
 /** How long a line-of-sight test through the land is trusted, seconds. */
 const TERRAIN_VIEW_SECONDS = 0.25;
 /** An aircraft's sightings: a fixed error in its reckoning of its own position (a fraction of the range), then metres and radians of noise. */
@@ -160,7 +175,7 @@ const horizon = (heightM: number): number => HORIZON_PER_SQRT_M * Math.sqrt(Math
 export class Gunnery {
   readonly battery: GunBattery;
   readonly world: ShellWorld;
-  readonly track = new TargetTrack();
+  readonly track: TargetTrack;
   readonly spotter = new AutoSpotter();
   readonly manual = { range: 0, deflection: 0 };
   readonly contacts: Contact[] = [];
@@ -210,7 +225,14 @@ export class Gunnery {
   private aimEpoch = 0;
   private terrainView = { id: -1, at: Number.NEGATIVE_INFINITY, top: false, deck: false };
 
+  private readonly rangingPeriod: number;
+  private readonly plotting: PlotTiming;
+
   constructor(private readonly cfg: GunneryConfig) {
+    const plot = cfg.plot ?? REAL_PLOT;
+    this.plotting = plot;
+    this.rangingPeriod = plot.rangingPeriod;
+    this.track = new TargetTrack(plot.window, plot.tau, plot.positionSigma, plot.minSpan);
     this.battery = new GunBattery(cfg.mounts, cfg.gun, cfg.rng, cfg.dispersion);
     this.world = new ShellWorld(cfg.env);
     this.activeShell = cfg.gun.shell;
@@ -253,7 +275,7 @@ export class Gunnery {
     this.aimEpoch = contact?.aimEpoch ?? 0;
     this.airBias = contact ? (((Math.imul(contact.id + 1, 2654435761) ^ Math.imul(this.cfg.shooterId + 7, 40503)) >>> 0) / 4294967296 - 0.5) * 2 * AIR_BIAS : 0;
     this.terrainView.id = -1;
-    this.rfTimer = RANGEFINDER_PERIOD; // take the first reading straight away
+    this.rfTimer = this.rangingPeriod; // take the first reading straight away
     this.solveTimer = SOLVE_PERIOD;
   }
 
@@ -437,13 +459,13 @@ export class Gunnery {
       this.lateralMisses = 0;
       this.lastSighting = Number.NEGATIVE_INFINITY;
       this.solution = null;
-      this.rfTimer = RANGEFINDER_PERIOD;
+      this.rfTimer = this.rangingPeriod;
       this.terrainView.id = -1;
     }
     const sight = this.isVisible(ship, c);
 
     this.rfTimer += dt;
-    if (this.rfTimer >= RANGEFINDER_PERIOD) {
+    if (this.rfTimer >= this.rangingPeriod) {
       this.rfTimer = 0;
       if (sight.visible && this.fireControlHealth > 0.12) this.sightTarget(now, ship, c, sight.range, sight.hullDown, sight.clarity);
       else if (!sight.visible && this.fireControlHealth > 0.12) this.sightFromAir(now, c);
@@ -586,7 +608,7 @@ export class Gunnery {
         };
         if (this.now - this.lastSighting > LOST_AFTER) quality = 'lost';
         else if (this.now < this.turnedUntil) quality = 'turned';
-        else if (est.samples < 4 || this.track.span(this.now) < 12) quality = 'plotting';
+        else if (est.samples < 4 || this.track.span(this.now) < 2 * this.plotting.minSpan) quality = 'plotting';
         else quality = est.sigmaSpeed > 0.7 ? 'settling' : 'settled';
       } else {
         quality = s.visible ? 'plotting' : 'lost';

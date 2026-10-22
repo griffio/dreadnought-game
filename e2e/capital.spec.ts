@@ -75,7 +75,9 @@ test('Denmark Strait: the King George V against the Bismarck, and the quadruple 
   await waitForFrames(page, 60);
   const jammed = await page.evaluate(() => window.__game!.playerCombatant.damage.turrets.find((t) => t.id === 'A')!.state);
   expect(jammed).toBe('jammed');
-  await expect(page.locator('.mline', { hasText: 'Turret A has jammed' }).first()).toBeVisible();
+  // The bridge is told. (Read the log itself: a message is up for 14 s of sim time, which is 1.4 s at this clock rate, and a busy
+  // machine can skip past it between two checks of the screen.)
+  expect(await page.evaluate(() => window.__game!.messages.all().some((m) => m.text.includes('Turret A has jammed')))).toBe(true);
   await page.screenshot({ path: 'test-results/denmark-strait.png' });
   expect(await page.evaluate(() => window.__gpuErrors ?? [])).toEqual([]);
   expect(problems).toEqual([]);

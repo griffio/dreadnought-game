@@ -19,11 +19,12 @@ interface Knobs {
   shellsFired: number;
   hitsScored: number;
   sightUp: boolean;
+  down: boolean;
   now: number;
 }
 
 function world(): { k: Knobs; frame: () => TutorialFrame } {
-  const k: Knobs = { target: false, quality: 'none', autoSpot: false, corrections: { range: 0, deflection: 0 }, lastReport: null, shellsFired: 0, hitsScored: 0, sightUp: false, now: 0 };
+  const k: Knobs = { target: false, quality: 'none', autoSpot: false, corrections: { range: 0, deflection: 0 }, lastReport: null, shellsFired: 0, hitsScored: 0, sightUp: false, down: false, now: 0 };
   const frame = (): TutorialFrame => ({
     status: {
       target: k.target
@@ -45,6 +46,7 @@ function world(): { k: Knobs; frame: () => TutorialFrame } {
     shellsFired: k.shellsFired,
     hitsScored: k.hitsScored,
     sightUp: k.sightUp,
+    targetDown: k.down,
     now: k.now,
   });
   return { k, frame };
@@ -260,6 +262,48 @@ describe('Gunnery School: the coach', () => {
     expect(t.view(frame(), 'keyboard-mouse').text).toContain('2 of 3');
     k.hitsScored = 6;
     t.update(frame());
+    expect(t.step.id).toBe('sight');
+  });
+
+  it('does not ask for hits on a ship that has gone down: it says so and goes on to the first step that needs no target', () => {
+    const { k, frame } = world();
+    const t = new Tutorial();
+    k.target = true;
+    k.quality = 'settled';
+    k.autoSpot = true;
+    t.update(frame());
+    t.next();
+    while (t.step.id !== 'hits') t.next();
+    t.update(frame());
+    expect(t.step.id).toBe('hits');
+    expect(t.view(frame(), 'keyboard-mouse').text).not.toMatch(/gone down/);
+    k.down = true;
+    t.update(frame());
+    expect(t.step.id).toBe('sight');
+    expect(t.view(frame(), 'keyboard-mouse').text).toMatch(/^She has gone down, so the shooting is over\./);
+    // The notice belongs to the card she was passed to: it goes when the player moves on.
+    k.sightUp = true;
+    t.update(frame());
+    expect(t.step.id).toBe('ruler');
+    expect(t.view(frame(), 'keyboard-mouse').text).not.toMatch(/gone down/);
+  });
+
+  it('passes over every step that needs her when she goes down early, and stops at the one that does not', () => {
+    const { k, frame } = world();
+    const t = new Tutorial();
+    t.update(frame());
+    t.next();
+    k.target = true;
+    t.update(frame());
+    expect(t.step.id).toBe('plot');
+    k.down = true;
+    t.update(frame());
+    // plot, fire, flight, correct and bracket all need a target; auto-spot does not, and it waits for the player.
+    expect(t.step.id).toBe('auto');
+    expect(t.view(frame(), 'touch').text).toMatch(/gone down/);
+    k.autoSpot = true;
+    t.update(frame());
+    // The hits step needs her too, so it is passed over as well.
     expect(t.step.id).toBe('sight');
   });
 

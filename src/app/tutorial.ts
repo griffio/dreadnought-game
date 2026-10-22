@@ -9,6 +9,8 @@ export interface TutorialFrame {
   hitsScored: number;
   /** The director's sight is up. */
   sightUp: boolean;
+  /** The target is beaten (sunk, sinking, blown up or struck): there is nothing left to shoot at. */
+  targetDown: boolean;
   /** Simulation seconds. */
   now: number;
 }
@@ -250,6 +252,8 @@ export class Tutorial {
   complete = false;
   /** The player has put the last card away. */
   finished = false;
+  /** The step the tutorial landed on after the target went down and the shooting steps were passed over (-1: it has not). */
+  private downAt = -1;
 
   constructor(readonly steps: readonly TutorialStep[] = GUNNERY_SCHOOL) {}
 
@@ -287,10 +291,13 @@ export class Tutorial {
     if (!this.memory) this.begin(f);
     const from = this.i;
     // A step may already be done by the time the next begins (auto-spot already on, say): carry on through them.
+    // A target that has gone down ends every step that needs her: the player cannot be asked to hit a ship on the bottom.
     for (let guard = 0; guard < this.steps.length; guard++) {
       const s = this.step;
-      if (s.manual || !this.memory || !s.done(f, this.memory)) break;
+      const gone = f.targetDown && s.needsTarget === true;
+      if (s.manual || !this.memory || !(gone || s.done(f, this.memory))) break;
       this.advance(f);
+      if (gone) this.downAt = this.i;
     }
     return this.i !== from;
   }
@@ -315,6 +322,7 @@ export class Tutorial {
     const s = this.step;
     const waited = this.memory ? f.now - this.memory.at : 0;
     let text = s.text(device, f, this.memory);
+    if (this.downAt === this.i) text = `She has gone down, so the shooting is over. ${text}`;
     if (s.needsTarget && f.status.target === null) {
       text = `She is no longer designated. ${this.steps.find((x) => x.id === 'designate')!.text(device, f, this.memory)}`;
     }

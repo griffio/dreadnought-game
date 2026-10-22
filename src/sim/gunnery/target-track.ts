@@ -35,6 +35,10 @@ export class TargetTrack {
     private readonly window = 75,
     /** Recency weighting time constant, seconds. */
     private readonly weightTau = 40,
+    /** One-sigma error of a single fix, metres: how much the fitted slope is trusted. */
+    private readonly positionSigma = 40,
+    /** A plot shorter than this says nothing about speed, seconds. */
+    private readonly minSpan = 6,
   ) {}
 
   get count(): number {
@@ -61,10 +65,10 @@ export class TargetTrack {
     while (this.samples.length > 0 && t - this.samples[0]!.t > this.window) this.samples.shift();
   }
 
-  estimate(now: number, positionSigma = 40): TrackEstimate | null {
+  estimate(now: number, positionSigma = this.positionSigma): TrackEstimate | null {
     const s = this.samples;
     if (s.length === 0) return null;
-    if (s.length < 3 || now - s[0]!.t < 6) {
+    if (s.length < 3 || now - s[0]!.t < this.minSpan) {
       const last = s[s.length - 1]!;
       return { x: last.x, z: last.z, vx: 0, vz: 0, sigmaSpeed: 99, samples: s.length };
     }

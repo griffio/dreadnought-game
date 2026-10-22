@@ -4,7 +4,7 @@ import { ChaseCamera } from './app/chase-camera';
 import { FreeCamera } from './app/free-camera';
 import { PerfSurvey } from './app/perf-survey';
 import { Campaign, type Recorded } from './campaign/campaign';
-import { missionById, practiceById, type MissionDef } from './campaign/missions';
+import { missionById, playtestById, practiceById, type MissionDef } from './campaign/missions';
 import { isShipId, shipById, type ShipId } from './data/ships/roster';
 import { buildShip } from './render/ships/forge/build-ship';
 import type { ShipInstance } from './render/ships/ship-renderer';
@@ -25,6 +25,7 @@ import { Camera } from './render/camera';
 import { runOceanSelfTest } from './render/ocean/ocean-selftest';
 import { RenderScaleController } from './render/render-scale';
 import { DEFAULT_SEA, SeaRenderer, type SeaParams } from './render/sea-renderer';
+import { paceById } from './sim/pace';
 import { FixedStepper } from './sim/time';
 import { DebugOverlay } from './ui/debug-overlay';
 import { BattleHud } from './ui/battle-hud';
@@ -51,12 +52,12 @@ function safeStorage(): Storage | null {
 }
 
 /** The page's own URL with only its cosmetic parameters, and a sortie if there is one (null: the front door). */
-function menuUrl(q: URLSearchParams, missionId: string | null, seed?: number, practice = false): string {
+function menuUrl(q: URLSearchParams, missionId: string | null, seed?: number, kind: 'mission' | 'practice' | 'playtest' = 'mission'): string {
   const u = new URL(location.href);
   u.search = '';
   for (const k of MENU_PARAMS) if (q.has(k) && k !== 'menu') u.searchParams.set(k, q.get(k)!);
   if (missionId) {
-    u.searchParams.set(practice ? 'practice' : 'mission', missionId);
+    u.searchParams.set(kind, missionId);
     if (seed !== undefined) u.searchParams.set('gseed', String(seed));
   } else u.searchParams.set('menu', '1');
   return u.toString();
@@ -123,7 +124,9 @@ async function boot(): Promise<void> {
   const sortie = missionById(q.get('mission'));
   // ?practice=gunnery-school is the coached course: a target that does not fire back, and a card that says what to do.
   const practice = practiceById(q.get('practice'));
-  for (const [k, v] of Object.entries((sortie ?? practice)?.params ?? {})) if (!q.has(k)) q.set(k, v);
+  // ?playtest=arcade-duel is an experiment with the pace of the game: a real fight, outside the campaign and unrecorded.
+  const playtest = playtestById(q.get('playtest'));
+  for (const [k, v] of Object.entries((sortie ?? practice ?? playtest)?.params ?? {})) if (!q.has(k)) q.set(k, v);
   if (q.get('hud') === '0') overlayRoot.hidden = true;
 
   const overlay = new DebugOverlay(overlayRoot, q.get('debug') === '1');
@@ -196,7 +199,7 @@ async function boot(): Promise<void> {
       : null;
   const autoPlayer = q.get('auto') === 'steady' ? 'steady' : q.get('auto') === 'closing' ? 'closing' : q.get('auto') === 'evade' ? 'evade' : null;
   const game = wantShip
-    ? new Game(sea, scenario, { seed: num('gseed', 1914), autoPlayer, refits: mission ? campaign.levels : undefined, objective: (mission ?? practice)?.objective, practice: practice !== null, player: isShipId(q.get('player')) ? (q.get('player') as ShipId) : mission?.ship })
+    ? new Game(sea, scenario, { seed: num('gseed', 1914), autoPlayer, refits: mission ? campaign.levels : undefined, objective: (mission ?? practice ?? playtest)?.objective, practice: practice !== null, pace: paceById(q.get('pace')), player: isShipId(q.get('player')) ? (q.get('player') as ShipId) : (mission ?? playtest)?.ship })
     : null;
   const player = game?.player ?? null;
   if (game && player) {
@@ -230,6 +233,7 @@ async function boot(): Promise<void> {
   const tutorial = game && practice ? new Tutorial() : null;
   if (tutorial) window.__tutorial = tutorial;
   document.body.dataset.tutorial = tutorial ? '1' : '0';
+  document.body.dataset.pace = game?.pace.id ?? 'real';
   const tutorialHud = tutorial
     ? new TutorialHud(overlayRoot, {
         next: () => tutorial.next(),
@@ -285,7 +289,7 @@ async function boot(): Promise<void> {
         overlayRoot,
         campaign,
         (m: MissionDef) => {
-          location.href = m.practice ? menuUrl(q, m.id, 1914, true) : menuUrl(q, m.id, 1914 + (campaign.state.missions[m.id]?.attempts ?? 0));
+          location.href = m.practice ? menuUrl(q, m.id, 1914, 'practice') : m.playtest ? menuUrl(q, m.id, 1914, 'playtest') : menuUrl(q, m.id, 1914 + (campaign.state.missions[m.id]?.attempts ?? 0));
         },
         (m: MissionDef) => {
           const ship = shipById(m.ship);
@@ -531,6 +535,8 @@ async function boot(): Promise<void> {
             baseFov,
             target ? (target as { id: number }).id : null,
           );
+        // Funnel smoke streams past the foretop where the sight is: it is cleared while the sight is up and comes back as it goes down.
+        sea.fx.showFunnelSmoke(!sightOwns);
         if (freeCamera) freeCamera.update(dt);
         else if (!sightOwns) {
           camera.fovYDeg = baseFov;
@@ -577,7 +583,7 @@ async function boot(): Promise<void> {
         const status = game.status();
         gunWidgets?.update(status, game.torpedoMode, game.spotterStatus());
         if (tutorial && tutorialHud && practice) {
-          const frame = { status, shellsFired: game.playerCombatant.shellsFired, hitsScored: game.playerCombatant.hitsScored, sightUp: sightOwns, now: game.simTime };
+          const frame = { status, shellsFired: game.playerCombatant.shellsFired, hitsScored: game.playerCombatant.hitsScored, sightUp: sightOwns, targetDown: game.enemies.length > 0 && game.enemies.every((e) => e.finished), now: game.simTime };
           tutorial.update(frame);
           // Reaching the last card is finishing the school, whether or not the player stays to read it.
           if (tutorial.complete && !campaign.practiceDone(practice.id)) campaign.finishPractice(practice.id);
