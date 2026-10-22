@@ -1,0 +1,9 @@
+{
+  "name": "Fall of Shot",
+  "short_name": "Fall of Shot",
+  "start_url": "/",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0b1620",
+  "theme_color": "#0b1620"
+}
