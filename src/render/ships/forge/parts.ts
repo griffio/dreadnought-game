@@ -116,6 +116,7 @@ export function addTurret(b: MeshBuilder, nodes: NodeTable, hull: HullSpec, t: T
     boreMm: t.boreMm,
     guns: t.guns,
     gunSpacing: t.gunSpacing,
+    house: { cx: t.x + (front - rear) / 2, cz: t.z, width, length: rear + front, sideY: topY + height * 0.5, roofY: topY + height },
   };
 }
 
@@ -301,6 +302,49 @@ export function addMast(b: MeshBuilder, hull: HullSpec, m: MastSpec): void {
   b.tube([apex[0], platY + 1.0, apex[2]], [apex[0], topY, apex[2]], 0.17, 0.05, 8);
   b.tube([apex[0], platY + m.topmast * 0.55, apex[2] - 4.5], [apex[0], platY + m.topmast * 0.55, apex[2] + 4.5], 0.06, 0.06, 6);
   b.tube([apex[0], platY + m.topmast * 0.78, apex[2]], [apex[0] - 3.8, platY + m.topmast * 0.5, apex[2]], 0.05, 0.05, 6);
+}
+
+/** Where the gaff of a mast ends, aft and a little down from the topmast: where the battle ensign is hoisted. */
+export function mastGaffEnd(hull: HullSpec, m: MastSpec): V3 {
+  const legs = m.legs.map(([x, z]) => [x, deckHeightAtX(hull, x) - 0.2, z] as V3);
+  const baseY = Math.max(...legs.map((l) => l[1]));
+  const platY = baseY + m.height;
+  const apexX = m.kind === 'tripod' ? legs.reduce((s, l) => s + l[0], 0) / legs.length - 0.6 : legs[0]![0];
+  const apexZ = m.kind === 'tripod' ? 0 : legs[0]![2];
+  return [apexX - 3.8, platY + m.topmast * 0.5, apexZ];
+}
+
+/**
+ * A flag: a strip of cloth hung from `(x, y, z)` and streaming aft (-x) for `length` metres, twice as long as it is high. Its node
+ * pivots at the hoist, so the rig can swing it to stream along the wind; the vertex shader makes it ripple. Each vertex carries its
+ * place on the cloth in `aux` (along from the hoist in the low byte, up from the bottom in the next), for the pattern.
+ */
+export function addFlag(b: MeshBuilder, nodes: NodeTable, id: string, x: number, y: number, z: number, length: number): number {
+  const node = nodes.add(`flag-${id}`, 0, [x, y, z]);
+  b.node = node;
+  b.material = MATERIAL.FLAG;
+  const height = length / 2;
+  const nu = 10;
+  const nv = 4;
+  const first = b.vertexCount;
+  for (let j = 0; j <= nv; j++) {
+    const v = 1 - j / nv;
+    for (let i = 0; i <= nu; i++) {
+      const u = i / nu;
+      b.auxValue = Math.round(u * 255) | (Math.round(v * 255) << 8);
+      b.vertex([x - u * length, y - (1 - v) * height, z], [0, 0, 1]);
+    }
+  }
+  b.auxValue = 0;
+  for (let j = 0; j < nv; j++) {
+    for (let i = 0; i < nu; i++) {
+      const a = first + j * (nu + 1) + i;
+      b.triangle(a, a + 1, a + nu + 1);
+      b.triangle(a + 1, a + nu + 2, a + nu + 1);
+    }
+  }
+  b.node = 0;
+  return node;
 }
 
 export function addBoat(b: MeshBuilder, hull: HullSpec, p: { x: number; z: number; length: number }): void {

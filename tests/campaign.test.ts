@@ -144,6 +144,27 @@ describe('the campaign', () => {
     expect(c.levels.rangefinder).toBe(2);
   });
 
+  it('the dockyard paints dazzle only once 1916 has been reached: the sortie for it must be open', () => {
+    const c = new Campaign(new Memory());
+    c.state.prestige = 100;
+    expect(c.refitAvailable('dazzle')).toBe(false);
+    expect(c.buy('dazzle')).toBe(false);
+    expect(c.levels.dazzle).toBe(0);
+    expect(c.prestige).toBe(100);
+    // Winning the sortie before it opens it.
+    c.record('trials', win());
+    c.record('torpedo-boats', win());
+    expect(c.refitAvailable('dazzle')).toBe(false);
+    c.record('narrows', win());
+    expect(c.refitAvailable('dazzle')).toBe(true);
+    expect(c.buy('dazzle')).toBe(true);
+    expect(c.levels.dazzle).toBe(1);
+    // One level only.
+    expect(c.buy('dazzle')).toBe(false);
+    // And the other refits are available from the start.
+    expect(new Campaign(new Memory()).refitAvailable('rangefinder')).toBe(true);
+  });
+
   it('survives damaged or foreign storage, and storage that throws', () => {
     expect(parseCampaign('not json').prestige).toBe(0);
     expect(parseCampaign(JSON.stringify({ version: 9, prestige: 50 })).prestige).toBe(0);
@@ -245,8 +266,8 @@ describe('the refits', () => {
   });
 
   it('change the instruments and the damage plan, level by level', () => {
-    const one = applyRefits(DREADNOUGHT_SETUP, { rangefinder: 1, flash: 1, bulges: 1, 'damage-control': 1 });
-    const two = applyRefits(DREADNOUGHT_SETUP, { rangefinder: 2, flash: 2, bulges: 2, 'damage-control': 2 });
+    const one = applyRefits(DREADNOUGHT_SETUP, { rangefinder: 1, flash: 1, bulges: 1, 'damage-control': 1, dazzle: 0 });
+    const two = applyRefits(DREADNOUGHT_SETUP, { rangefinder: 2, flash: 2, bulges: 2, 'damage-control': 2, dazzle: 0 });
     expect(one.rangefinder).toBe(RANGEFINDER_15FT);
     expect(two.rangefinder).toBe(RANGEFINDER_30FT);
     expect(one.damage.flashProtection).toBeGreaterThan(0.3);
@@ -259,10 +280,19 @@ describe('the refits', () => {
     expect(DREADNOUGHT_SETUP.damage.torpedoProtection).toBeUndefined();
   });
 
-  it('are priced, and each has two levels', () => {
+  it('are priced, and a refit with a second level costs more for it', () => {
     for (const r of REFITS) {
-      expect(r.levels.length).toBe(2);
-      expect(r.levels[1]!.cost).toBeGreaterThan(r.levels[0]!.cost);
+      expect(r.levels.length).toBeGreaterThanOrEqual(1);
+      expect(r.levels.length).toBeLessThanOrEqual(2);
+      for (const l of r.levels) expect(l.cost).toBeGreaterThan(0);
+      if (r.levels.length === 2) expect(r.levels[1]!.cost).toBeGreaterThan(r.levels[0]!.cost);
     }
+  });
+
+  it('dazzle paint marks her for the enemy’s gunnery, and is not on a ship that has not had it', () => {
+    expect(applyRefits(DREADNOUGHT_SETUP, noRefits()).dazzle).toBeUndefined();
+    expect(applyRefits(DREADNOUGHT_SETUP, { ...noRefits(), dazzle: 1 }).dazzle).toBe(1);
+    // The original is untouched.
+    expect(DREADNOUGHT_SETUP.dazzle).toBeUndefined();
   });
 });

@@ -3,6 +3,7 @@ import type { Combatant } from '../sim/combat/combatant';
 import { TUNING, type ShipDamage } from '../sim/damage/ship-damage';
 import type { ShipModel } from '../render/ships/forge/spec';
 import type { ShipInstance, ShipPaint } from '../render/ships/ship-renderer';
+import { flagStreaming, rippleAt } from '../render/ships/flags';
 import { carry, sectionMatrix } from '../render/ships/section';
 import { BATTLESHIP_FLOATING, FloatingBody, fitWaterPlane } from '../sim/ships/buoyancy';
 import { handlingFor, KNOT, ShipDynamics, type HandlingOverrides } from '../sim/ships/dynamics';
@@ -48,6 +49,8 @@ export class ShipActor implements WakeSource {
   private broken: { x: number; at: number } | null = null;
   /** The part of her aft of the break, drawn as a second instance of the same model. */
   private stern: ShipInstance | null = null;
+  /** The direction her flags stream in, in ship space (radians from the bow, + starboard): it follows the wind she makes, a little late. */
+  private flagAngle = Math.PI;
   /** The split as it was last drawn, for the recorder. */
   private split: { x: number; age: number; sunk: number } | null = null;
 
@@ -180,6 +183,18 @@ export class ShipActor implements WakeSource {
     stern.visible = bow.visible;
   }
 
+  /**
+   * Her flags stream along the wind as she feels it: the true wind less her own motion (the flags fly aft when she steams in a calm and
+   * stream to leeward in a breeze at rest). `dt` eases them round, so that a turn does not snap them.
+   */
+  private streamFlags(headingDeg: number, speed: number, dt: number): void {
+    const p = this.sea.params;
+    const wind = flagStreaming(headingDeg, speed, p.waveHeadingDeg, p.windSpeed);
+    this.flagAngle = dt > 0 ? lerpAngle(this.flagAngle, wind.angle, 1 - Math.exp(-dt * 3)) : wind.angle;
+    this.instance.rig.setFlags(this.flagAngle);
+    this.instance.flutter = rippleAt(wind.speed);
+  }
+
   /** A shell has struck her: the marks it leaves (scorch, a hole) are carried on her hull from now on. */
   markHit(mark: HitMark, now: number): void {
     for (const d of decalsForHit(mark, now)) this.instance.decals.add(d);
@@ -204,6 +219,7 @@ export class ShipActor implements WakeSource {
       guns: this.instance.rig.snapshot(),
       fires: this.instance.fireCount > 0 ? Array.from(this.instance.fires.subarray(0, this.instance.fireCount * 4)) : undefined,
       split: this.split ?? undefined,
+      coloursDown: this.instance.rig.coloursDown || undefined,
     };
   }
 
@@ -220,6 +236,8 @@ export class ShipActor implements WakeSource {
     this.instance.rig.restore(s.guns);
     this.instance.setFiresRaw(s.fires ?? []);
     this.showSplit(s.split ?? null);
+    this.instance.rig.hauledDown(s.coloursDown === true);
+    this.streamFlags(s.headingDeg, s.speed, 0);
   }
 
   /** Add the wake her stern left at time `t`, as a replay has her. */
@@ -264,6 +282,7 @@ export class ShipActor implements WakeSource {
     pose.roll = this.body.roll;
     this.followGuns();
     this.showDamage();
+    this.streamFlags(pose.headingDeg, Math.abs(d.speed), dt);
   }
 
   /** What has happened to her shows on her: a wrecked turret is blown apart and charred, and her fires light her hull. */
@@ -272,5 +291,7 @@ export class ShipActor implements WakeSource {
     if (!dm) return;
     for (const t of dm.turrets) if (t.state === 'destroyed') this.instance.rig.wreck(t.id);
     this.instance.setFires(dm.fireSites());
+    // A ship that has struck her colours has hauled them down.
+    this.instance.rig.hauledDown(dm.status === 'struck');
   }
 }

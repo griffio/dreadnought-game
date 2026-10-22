@@ -40,6 +40,8 @@ export class ShipRig {
   /** Nodes that have been blown away: their matrix is made nothing, so none of their geometry is drawn. */
   private readonly gone = new Uint8Array(MAX_NODES);
   private readonly wrecked = new Set<string>();
+  /** The flags' nodes are swung together to stream along the wind, and are hauled down (gone) when she strikes her colours. */
+  private flagsDown = false;
   private readonly turretsById = new Map<string, TurretRef>();
   private readonly local: Mat4[];
   private readonly world: Mat4[];
@@ -78,6 +80,21 @@ export class ShipRig {
     if (this.wrecked.has(id)) return;
     const n = this.turret(id).barrelNodes[gun];
     if (n !== undefined) this.poses[n]!.slide = -Math.abs(metres);
+  }
+
+  /** Swing every flag to stream along the direction `rad` in ship space (radians from the bow, + starboard; pi is straight aft, the flag's rest). */
+  setFlags(rad: number): void {
+    for (const n of this.model.flags) this.poses[n]!.train = rad - Math.PI;
+  }
+
+  /** Haul the colours down (or run them up again). */
+  hauledDown(down: boolean): void {
+    this.flagsDown = down;
+    for (const n of this.model.flags) this.gone[n] = down ? 1 : 0;
+  }
+
+  get coloursDown(): boolean {
+    return this.flagsDown;
   }
 
   isWrecked(id: string): boolean {

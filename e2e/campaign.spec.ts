@@ -99,7 +99,9 @@ test('campaign: a won sortie is marked, opens the next, and the prestige buys a 
 
   // The dry dock: buy the first rangefinder refit.
   await page.getByRole('button', { name: 'DRY DOCK' }).click();
-  await expect(page.locator('.drefit')).toHaveCount(4);
+  // Every refit has its card (rangefinders, anti-flash, bulges, damage control, dazzle).
+  await expect(page.locator('.drefit')).toHaveCount(5);
+  await expect(page.locator('.drefit[data-id="dazzle"]')).toBeVisible();
   const row = page.locator('.drefit[data-id="rangefinder"]');
   await expect(row.locator('.dbuy')).toBeEnabled();
   await row.locator('.dbuy').click();

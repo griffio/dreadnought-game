@@ -57,6 +57,8 @@ export interface CombatantConfig {
   tubes?: readonly TubeSpec[];
   torpedo?: TorpedoSpec;
   small?: boolean;
+  /** She is painted in dazzle, 0..1: the other side's readings of her are coarser at a distance. */
+  dazzle?: number;
   /** A battery that picks its own targets from the small craft among the opponents. */
   autoTarget?: { battery: string; maxRange: number; capitalRange?: number };
   /** Seconds between firing solutions for this ship's batteries. */
@@ -286,6 +288,9 @@ export class Combatant implements Contact {
   }
   get small(): boolean {
     return this.cfg.small ?? false;
+  }
+  get dazzle(): number {
+    return this.cfg.dazzle ?? 0;
   }
   get struck(): boolean {
     return this.damage.status === 'struck';
@@ -577,11 +582,12 @@ export class Combatant implements Contact {
 }
 
 /** The parts of a ship setup that the combatant's config carries as separate fields. */
-export function setupExtras(setup: ShipSetup): Pick<CombatantConfig, 'tubes' | 'torpedo' | 'small' | 'autoTarget' | 'jams' | 'wounds' | 'rudderJam' | 'neverStrikes' | 'plot'> {
+export function setupExtras(setup: ShipSetup): Pick<CombatantConfig, 'tubes' | 'torpedo' | 'small' | 'dazzle' | 'autoTarget' | 'jams' | 'wounds' | 'rudderJam' | 'neverStrikes' | 'plot'> {
   return {
     tubes: setup.tubes,
     torpedo: setup.torpedo,
     small: setup.small,
+    dazzle: setup.dazzle,
     autoTarget: setup.autoTarget,
     jams: setup.jams,
     wounds: setup.wounds,

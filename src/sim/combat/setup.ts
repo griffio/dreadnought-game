@@ -35,6 +35,8 @@ export interface ShipSetup {
   rudderJam?: number;
   /** She will never haul down her colours. */
   neverStrikes?: boolean;
+  /** She is painted in dazzle, 0..1 (see sim/gunnery/dazzle.ts): the enemy's readings of her are coarser at a distance. */
+  dazzle?: number;
   /** How fast her plotting table works, where it is not the real one's pace (see pace.ts). */
   plot?: PlotTiming;
 }

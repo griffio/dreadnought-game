@@ -1,6 +1,6 @@
 import { MISSIONS, PRACTICE, missionById, scoreMission, type MissionOutcome, type MissionScore } from './missions';
 import { isPaceId, type PaceId } from '../sim/pace';
-import { noRefits, nextRefitCost, REFITS, type RefitId, type RefitLevels } from './refits';
+import { noRefits, nextRefitCost, refitDef, REFITS, type RefitId, type RefitLevels } from './refits';
 
 /** What the player has done: the prestige in hand, how each sortie went, and what the dockyard has fitted. */
 export interface CampaignState {
@@ -126,8 +126,15 @@ export class Campaign {
     return { score, firstWin, prestige: this.state.prestige };
   }
 
-  /** Buy the next level of a refit, if the prestige is there. */
+  /** Will the dockyard do this refit yet? Some wait on a sortie being open (dazzle paint came in with 1917). */
+  refitAvailable(id: RefitId): boolean {
+    const after = refitDef(id).after;
+    return !after || this.isUnlocked(after.mission);
+  }
+
+  /** Buy the next level of a refit, if the prestige is there and the dockyard will do it. */
   buy(id: RefitId): boolean {
+    if (!this.refitAvailable(id)) return false;
     const level = this.state.refits[id];
     const cost = nextRefitCost(id, level);
     if (cost === null || cost > this.state.prestige) return false;

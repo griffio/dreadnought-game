@@ -118,6 +118,8 @@ export interface TurretRef {
   boreMm: number;
   guns: number;
   gunSpacing: number;
+  /** The training house as built, ship space: where its middle is, its size, and the height of its roof (for the letter painted on it). */
+  house: { cx: number; cz: number; width: number; length: number; sideY: number; roofY: number };
 }
 
 export interface ShipModel {
@@ -134,4 +136,8 @@ export interface ShipModel {
   waterlineHalfBreadthAt(x: number): number;
   /** Highest point above the waterline, metres (for shadow framing). */
   maxHeight: number;
+  /** Height of her upper deck above the waterline at a ship-space x, metres (where her hull numbers go). */
+  deckHeightAt(x: number): number;
+  /** The animation nodes of her flags (the ensign at the staff, the battle ensign at the gaff): each streams from its hoist in the wind. */
+  flags: number[];
 }

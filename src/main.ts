@@ -235,6 +235,10 @@ async function boot(): Promise<void> {
     if (q.get('designate') === '1' && game.targets[0]) game.gunnery.designate(game.targets[0]);
     if (q.get('autospot') === '1') game.gunnery.autoSpot = true;
     if (q.get('tracers') === '0') sea.fx.tracers = false;
+    // ?marks=0 takes off her hull number, turret letters and ensign's colours (for comparing pictures).
+    if (q.get('marks') === '0') player.instance.paint = { ...player.instance.paint, markings: {} };
+    // ?dazzle=<seed> paints her in a dazzle pattern (for tuning and screenshots; the dockyard's dazzle refit does it in the campaign).
+    if (q.has('dazzle')) player.instance.paint = { ...player.instance.paint, markings: { ...player.instance.paint.markings, dazzle: Math.max(num('dazzle', 7), 0) } };
     // ?weather=0..1 sets how weathered her paint is (for tuning and screenshots).
     if (q.has('weather')) player.instance.paint = { ...player.instance.paint, weathering: Math.min(Math.max(num('weather', 0.55), 0), 1) };
   }

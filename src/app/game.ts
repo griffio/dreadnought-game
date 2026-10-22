@@ -3,6 +3,7 @@ import type { Listener } from '../audio/spatial';
 import { applyRefits, noRefits, type RefitLevels } from '../campaign/refits';
 import { fortShipSpec } from '../data/forts/fort-model';
 import { narrowsFortSpecs, narrowsMines, narrowsTerrain } from '../data/missions/narrows';
+import { DAZZLE_SEED } from '../data/ships/markings';
 import { paintOf, shipById, type ShipEntry, type ShipId } from '../data/ships/roster';
 import type { Intent } from '../input/intent';
 import type { Camera } from '../render/camera';
@@ -284,7 +285,10 @@ export class Game {
     const playerSetup = pacedSetup(applyRefits(this.playerEntry.setup, options.refits ?? noRefits()), pace);
     this.playerSetup = playerSetup;
     this.director = playerSetup.director ?? DIRECTOR_DEFAULT;
-    this.player = new PlayerShip(sea, buildShip(this.playerEntry.spec), playerSetup.maxSpeedKn, paintOf(this.playerEntry), playerSetup.handling);
+    // Her paint: the dockyard's dazzle scheme, if she has had it, over her own markings.
+    const paint = paintOf(this.playerEntry);
+    if ((playerSetup.dazzle ?? 0) > 0) paint.markings = { ...paint.markings, dazzle: DAZZLE_SEED[this.playerEntry.id] };
+    this.player = new PlayerShip(sea, buildShip(this.playerEntry.spec), playerSetup.maxSpeedKn, paint, playerSetup.handling);
     this.player.helmRate *= pace.rudder;
     this.playerCombatant = new Combatant({
       id: PLAYER_ID,

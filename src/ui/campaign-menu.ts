@@ -250,10 +250,11 @@ export class CampaignMenu {
         el('div', 'drfull', row, 'Fully fitted');
       } else {
         const up = r.levels[level]!;
+        const available = this.campaign.refitAvailable(r.id);
         const buy = el('button', 'dbuy', row);
-        el('span', '', buy, `${up.label}  ·  ${up.effect}`);
+        el('span', '', buy, available ? `${up.label}  ·  ${up.effect}` : r.after!.text);
         el('b', '', buy, `${next}`);
-        buy.disabled = next > this.campaign.prestige;
+        buy.disabled = !available || next > this.campaign.prestige;
         buy.addEventListener('click', () => {
           if (this.campaign.buy(r.id)) this.refresh();
         });

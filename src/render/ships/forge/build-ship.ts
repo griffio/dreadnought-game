@@ -3,6 +3,7 @@ import { MeshBuilder } from './mesh-builder';
 import {
   addBlock,
   addBoat,
+  addFlag,
   addConning,
   addFunnel,
   addLightGun,
@@ -11,6 +12,7 @@ import {
   addStaff,
   addTurret,
   addVent,
+  mastGaffEnd,
   NodeTable,
 } from './parts';
 import type { ShipModel, ShipSpec } from './spec';
@@ -35,6 +37,17 @@ export function buildShip(spec: ShipSpec): ShipModel {
   for (const s of spec.staffs) addStaff(b, hull, s);
   const turrets = spec.turrets.map((t) => addTurret(b, nodes, hull, t));
 
+  // Her flags: the ensign at the staff aft, and the battle ensign (larger) at the gaff of her aftermost mast.
+  const flags: number[] = [];
+  const flagLength = Math.min(Math.max(hull.length * 0.021, 2.0), 4.2);
+  const aftStaff = spec.staffs.length > 0 ? spec.staffs.reduce((a, s) => (s.x < a.x ? s : a)) : null;
+  if (aftStaff) flags.push(addFlag(b, nodes, 'ensign', aftStaff.x, deckHeightAtX(hull, aftStaff.x) + aftStaff.height - 0.2, 0, flagLength));
+  if (spec.masts.length > 0) {
+    const aftMast = spec.masts.reduce((a, m) => (Math.min(...m.legs.map((l) => l[0])) < Math.min(...a.legs.map((l) => l[0])) ? m : a));
+    const gaff = mastGaffEnd(hull, aftMast);
+    flags.push(addFlag(b, nodes, 'battle', gaff[0], gaff[1] - 0.05, gaff[2], flagLength * 1.3));
+  }
+
   let maxHeight = 0;
   for (let i = 1; i < b.positions.length; i += 3) maxHeight = Math.max(maxHeight, b.positions[i]!);
 
@@ -51,5 +64,7 @@ export function buildShip(spec: ShipSpec): ShipModel {
     draft: hull.draft,
     waterlineHalfBreadthAt: (x: number) => waterlineHalfBreadth(hull, Math.min(Math.max(x / hull.length + 0.5, 0), 1)),
     maxHeight,
+    deckHeightAt: (x: number) => deckHeightAtX(hull, x),
+    flags,
   };
 }

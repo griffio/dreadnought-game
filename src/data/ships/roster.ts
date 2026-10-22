@@ -2,6 +2,7 @@ import type { ShipSpec } from '../../render/ships/forge/spec';
 import type { ShipPaint } from '../../render/ships/ship-renderer';
 import { AGGRESSIVE, BISMARCK_CAPTAIN, CRIPPLED_CAPTAIN, HIGH_SEAS_FLEET, type AiProfile } from '../../sim/combat/ai';
 import type { ShipSetup } from '../../sim/combat/setup';
+import { MARKINGS } from './markings';
 import { BISMARCK } from './bismarck';
 import { DESTROYER } from './destroyer';
 import { DREADNOUGHT } from './dreadnought';
@@ -58,7 +59,7 @@ const WEATHERING: Record<ShipId, number> = {
 
 /** The paint a ship is drawn with: her colours, if she has her own, and how weathered she is. */
 export function paintOf(entry: ShipEntry): Partial<ShipPaint> {
-  return { ...entry.paint, weathering: WEATHERING[entry.id] };
+  return { ...entry.paint, weathering: WEATHERING[entry.id], markings: MARKINGS[entry.id] };
 }
 
 export const ROSTER: Record<ShipId, ShipEntry> = {

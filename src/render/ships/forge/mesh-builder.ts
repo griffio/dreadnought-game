@@ -20,6 +20,7 @@ export const MATERIAL = {
   WOOD: 7,
   BLACK: 8,
   BRASS: 9,
+  FLAG: 10,
 } as const;
 export type MaterialId = (typeof MATERIAL)[keyof typeof MATERIAL];
 

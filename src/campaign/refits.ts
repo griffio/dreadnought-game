@@ -1,7 +1,7 @@
 import type { ShipSetup } from '../sim/combat/setup';
 import { RANGEFINDER_15FT, RANGEFINDER_30FT } from '../sim/gunnery/rangefinder';
 
-export type RefitId = 'rangefinder' | 'flash' | 'bulges' | 'damage-control';
+export type RefitId = 'rangefinder' | 'flash' | 'bulges' | 'damage-control' | 'dazzle';
 
 export interface RefitLevelDef {
   /** Prestige it costs to fit. */
@@ -17,6 +17,8 @@ export interface RefitDef {
   blurb: string;
   /** Level 1 is the first fit, level 2 the second. Level 0 is as built. */
   levels: readonly RefitLevelDef[];
+  /** The sortie that must be open before the dockyard will do it (the practice of the day: dazzle came in 1917), and what to tell the player. */
+  after?: { mission: string; text: string };
 }
 
 export type RefitLevels = Record<RefitId, number>;
@@ -59,10 +61,17 @@ export const REFITS: readonly RefitDef[] = [
       { cost: 22, label: 'Trained crews', effect: 'Two more parties; pumps half as strong again.' },
     ],
   },
+  {
+    id: 'dazzle',
+    name: 'Dazzle paint',
+    blurb: 'Angular patches of black, white and blue-grey that break up her lines, as the fleet was painted from 1917. It does not hide her: it makes her heading and her speed hard to judge.',
+    levels: [{ cost: 14, label: 'Dazzle scheme', effect: 'The enemy’s range and bearing readings are worse at long range (up to a third worse beyond 9 km), and no worse inside 3 km.' }],
+    after: { mission: 'run-to-the-south', text: 'The Admiralty takes up dazzle painting after Jutland: open “Run to the South” first.' },
+  },
 ];
 
 export function noRefits(): RefitLevels {
-  return { rangefinder: 0, flash: 0, bulges: 0, 'damage-control': 0 };
+  return { rangefinder: 0, flash: 0, bulges: 0, 'damage-control': 0, dazzle: 0 };
 }
 
 export function refitDef(id: RefitId): RefitDef {
@@ -93,6 +102,7 @@ export function applyRefits(setup: ShipSetup, levels: RefitLevels): ShipSetup {
   return {
     ...setup,
     damage,
+    dazzle: levels.dazzle > 0 ? 1 : setup.dazzle,
     rangefinder: fitted && fitted.baseM > setup.rangefinder.baseM ? fitted : setup.rangefinder,
   };
 }

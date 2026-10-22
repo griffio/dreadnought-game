@@ -9,6 +9,7 @@ import skyMap from '../shaders/sky_map.wgsl?raw';
 import { mulMat4, type Mat4 } from '../../math/mat4';
 import { DECAL_FLOATS, DecalSet, MAX_DECALS } from './decals';
 import { MAX_FIRES, packFires, type FireSite } from './fires';
+import { ENSIGN_CODE, MARK_FLOATS, packMarks, type ShipMarkings } from './marks';
 import { shipModelMatrix, type ShipPose } from './pose-matrix';
 import { MAX_NODES, ShipRig } from './rig';
 import { SHADOW_FORMAT, type ShadowMap } from './shadow-map';
@@ -20,7 +21,7 @@ import { VERTEX_STRIDE_BYTES } from './forge/mesh-builder';
 import type { WeatheringTextures } from './weathering';
 
 /** Floats in the ShipU uniform: model(16) + nodes(96*16) + three vec4 of paint + a vec4 of clock + the decals + the nodes' char + the fires + the split. */
-const UNIFORM_FLOATS = 16 + MAX_NODES * 16 + 12 + 4 + MAX_DECALS * DECAL_FLOATS + MAX_NODES + MAX_FIRES * 4 + 4;
+const UNIFORM_FLOATS = 16 + MAX_NODES * 16 + 12 + 4 + MAX_DECALS * DECAL_FLOATS + MAX_NODES + MAX_FIRES * 4 + 4 + MARK_FLOATS + 4;
 
 export interface ShipPaint {
   hull: Vec3;
@@ -31,6 +32,8 @@ export interface ShipPaint {
   concrete?: boolean;
   /** 0 as new, 1 long at sea: how much rust, wear and grime the ship shows (default 0.55). */
   weathering?: number;
+  /** What is painted on her and flown from her: her hull number, turret letters, ensign and any dazzle. */
+  markings?: ShipMarkings;
 }
 
 export const ADMIRALTY_GREY: ShipPaint = {
@@ -53,6 +56,8 @@ export class ShipInstance {
   /** The fires burning in her, ship-space position and intensity (x, y, z, w), the brightest first: they glow on her hull. */
   readonly fires = new Float32Array(MAX_FIRES * 4);
   fireCount = 0;
+  /** How hard her flags ripple, 0 (hanging) to 1 (a gale along them): set from the wind she is making. */
+  flutter = 0.5;
   /** A ship broken in two shows one part of herself (see ShipU.split); side 0 is the whole ship. */
   split = { x: 0, side: 0, ragged: 0, age: 0 };
 
@@ -73,6 +78,9 @@ export class ShipInstance {
   private readonly data = new Float32Array(UNIFORM_FLOATS);
   private readonly model = new Float32Array(16);
   private readonly placed = new Float32Array(16);
+  /** The marks as packed for the shader, and the markings they were packed from. */
+  private marks = new Float32Array(MARK_FLOATS);
+  private markSource: ShipMarkings | undefined | null = null;
 
   constructor(
     device: GPUDevice,
@@ -127,13 +135,19 @@ export class ShipInstance {
     d.set(place, 0);
     d.set(src.rig.matrices, 16);
     const o = 16 + MAX_NODES * 16;
-    d.set([...src.paint.hull, 0, ...src.paint.superstructure, 0, src.paint.wetness, src.paint.concrete ? 1 : 0, src.cutaway, 0], o);
+    d.set([...src.paint.hull, 0, ...src.paint.superstructure, 0, src.paint.wetness, src.paint.concrete ? 1 : 0, src.cutaway, src.paint.markings?.dazzle ?? 0], o);
     d.set([simTime, src.paint.weathering ?? 0.55, src.decals.count, src.fireCount], o + 12);
     src.decals.pack(d, o + 16);
     const c = o + 16 + MAX_DECALS * DECAL_FLOATS;
     d.set(src.rig.char, c);
     d.set(src.fires, c + MAX_NODES);
     d.set([this.split.x, this.split.side, this.split.ragged, this.split.age], c + MAX_NODES + MAX_FIRES * 4);
+    if (src.paint.markings !== this.markSource) {
+      this.markSource = src.paint.markings;
+      packMarks(this.shipModel, src.paint.markings, this.marks);
+    }
+    d.set(this.marks, c + MAX_NODES + MAX_FIRES * 4 + 4);
+    d.set([src.flutter, 0, ENSIGN_CODE[src.paint.markings?.ensign ?? 'white'], this.shipModel.length * 0.0242], c + MAX_NODES + MAX_FIRES * 4 + 4 + MARK_FLOATS);
     device.queue.writeBuffer(this.uniformBuffer, 0, d);
   }
 
@@ -239,6 +253,7 @@ export class ShipRenderer {
           { binding: 3, resource: opts.weathering.weather.createView({ dimension: '2d-array' }) },
           { binding: 4, resource: opts.weathering.decals.createView({ dimension: '2d-array' }) },
           { binding: 5, resource: opts.weathering.sampler },
+          { binding: 6, resource: opts.weathering.glyphs.createView() },
         ],
       }),
       device.createBindGroup({

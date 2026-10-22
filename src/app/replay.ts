@@ -54,6 +54,8 @@ export interface ShipShot {
   guns: Float32Array;
   /** The fires burning in her, four numbers each (ship-space position, intensity), as they light her hull. */
   fires?: number[];
+  /** She has struck her colours: the ensigns are down. */
+  coloursDown?: boolean;
   /** A ship that has broken in two: where (ship-space x), how long ago, and how far on in sinking (0..1). */
   split?: { x: number; age: number; sunk: number };
 }
@@ -278,6 +280,7 @@ export function viewAt(rec: ReplayRecorder, t: number): ReplayView | null {
       visible: f < 0.5 ? sa.visible : sb.visible,
       guns: f < 0.5 ? sa.guns : sb.guns,
       fires: f < 0.5 ? sa.fires : sb.fires,
+      coloursDown: f < 0.5 ? sa.coloursDown : sb.coloursDown,
       // A ship breaking between the two samples breaks at the later one; one already broken goes on from where she was.
       split: sa.split && sb.split ? { x: sb.split.x, age: lerp(sa.split.age, sb.split.age, f), sunk: lerp(sa.split.sunk, sb.split.sunk, f) } : f < 0.5 ? sa.split : sb.split,
     };

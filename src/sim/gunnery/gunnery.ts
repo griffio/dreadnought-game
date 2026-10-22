@@ -1,4 +1,5 @@
 import type { Rng } from '../rng';
+import { dazzleFactor } from './dazzle';
 import { shipPointToWorld, type ShipFrame } from '../ships/frame';
 import type { Terrain } from '../terrain/terrain';
 import { CALM, rangeAtElevation, solveElevation, type Environment, type ShellSpec } from './ballistics';
@@ -42,6 +43,8 @@ export interface Contact {
   small?: boolean;
   /** She has struck her colours: no gun is to be fired at her. */
   struck?: boolean;
+  /** She is painted in dazzle, 0 (not) to 1 (fully): the readings taken of her are the coarser for it at a distance (see dazzle.ts). */
+  dazzle?: number;
   /** Height of the ground she stands on above the sea, metres: a fort on a hill. 0 for a ship. */
   baseHeight?: number;
   /**
@@ -527,12 +530,14 @@ export class Gunnery {
     // A hull-down target is ranged on its upperworks, which are harder to hold: the error grows.
     // Damaged directors and rangefinders read worse, and a hull-down target is ranged on its upperworks.
     // Thin smoke between the ships blurs the image: the error grows as the view dims.
-    const error = (hullDown ? 1.6 : 1) / Math.max(this.fireControlHealth, 0.3) / Math.max(clarity, 0.3);
+    // Dazzle paint on the target muddles the reading, more at long range.
+    const dazzle = dazzleFactor(c.dazzle ?? 0, range);
+    const error = ((hullDown ? 1.6 : 1) / Math.max(this.fireControlHealth, 0.3) / Math.max(clarity, 0.3)) * dazzle.range;
     const spec = { ...this.cfg.rangefinder, angularError: this.cfg.rangefinder.angularError * error };
     const measured = measureRange(rng, range, spec, this.visibilityKm, this.rangefinderBias);
     const eyePos = this.eyeOf(ship);
     const trueBearing = azimuthTo(aimX(c) - eyePos.x, aimZ(c) - eyePos.z);
-    const bearing = trueBearing + rng.gaussian() * BEARING_SIGMA;
+    const bearing = trueBearing + rng.gaussian() * BEARING_SIGMA * dazzle.bearing;
     this.recordFix(now, eyePos.x, eyePos.z, measured, bearing);
   }
 

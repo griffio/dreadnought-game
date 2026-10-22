@@ -2,6 +2,7 @@
 // uniform table. Surfaces are procedural: plating seams, deck planks, boot-topping, weathering.
 // Requires common, scene, sky_map, env, haze, shadow, ship_u. Group 2 = ship instance.
 const EARTH_R: f32 = 6371000.0;
+const M_FLAG: u32 = 10u;
 
 @group(2) @binding(0) var<uniform> ship: ShipU;
 
@@ -20,13 +21,31 @@ struct VOut {
   @location(3) nrm_obj: vec3<f32>,
   @location(4) @interpolate(flat) ids: u32,
   @location(5) @interpolate(flat) aux: u32,
+  @location(6) uv: vec2<f32>,
 };
 
 @vertex
 fn vs(in: VIn) -> VOut {
   let nm = ship.nodes[in.ids & 0xffu];
-  let p_ship = nm * vec4<f32>(in.pos, 1.0);
-  let n_ship = (nm * vec4<f32>(in.nrm, 0.0)).xyz;
+  var pos = in.pos;
+  var nrm = in.nrm;
+  var cloth = vec2<f32>(0.0);
+  // A flag ripples: waves run down the cloth from the hoist, growing toward the fly, in the node's own frame (so it ripples across
+  // whichever way the rig has swung it).
+  if (((in.ids >> 8u) & 0xffu) == M_FLAG) {
+    let u = f32(in.aux & 0xffu) / 255.0;
+    let v = f32((in.aux >> 8u) & 0xffu) / 255.0;
+    cloth = vec2<f32>(u, v);
+    let amp = ship.flags.x * ship.flags.w;
+    let t = ship.clock.x * 6.0 + f32(in.ids & 0xffu) * 1.7;
+    let k1 = u * 7.0 - t + v * 1.3;
+    let k2 = u * 13.0 - t * 1.7 + v * 2.1;
+    let wave = 0.15 * sin(k1) + 0.06 * sin(k2);
+    pos = in.pos + vec3<f32>(0.0, amp * u * 0.02 * sin(u * 9.0 - t * 1.1), amp * u * wave);
+    nrm = normalize(vec3<f32>(ship.flags.x * (wave + u * (1.05 * cos(k1) + 0.78 * cos(k2))), 0.0, 1.0));
+  }
+  let p_ship = nm * vec4<f32>(pos, 1.0);
+  let n_ship = (nm * vec4<f32>(nrm, 0.0)).xyz;
   var p_rel = (ship.model * p_ship).xyz;
   let n_rel = normalize((ship.model * vec4<f32>(n_ship, 0.0)).xyz);
   p_rel.y -= dot(p_rel.xz, p_rel.xz) / (2.0 * EARTH_R);
@@ -39,6 +58,7 @@ fn vs(in: VIn) -> VOut {
   out.nrm_obj = in.nrm;
   out.ids = in.ids;
   out.aux = in.aux;
+  out.uv = cloth;
   return out;
 }
 
@@ -56,6 +76,7 @@ struct Surf {
 @group(1) @binding(3) var weather: texture_2d_array<f32>;
 @group(1) @binding(4) var decal_tex: texture_2d_array<f32>;
 @group(1) @binding(5) var weather_samp: sampler;
+@group(1) @binding(6) var glyph_tex: texture_2d<f32>;
 const L_STEEL: i32 = 0;   // R plating detail, G fine scratches
 const L_WEAR: i32 = 1;    // R rust and bare metal where the paint has gone, G lighter chips, B the paint's mottling
 const L_STREAK: i32 = 2;  // R rust drips
@@ -109,9 +130,36 @@ fn plating(obj: vec3<f32>, n: vec3<f32>, plate: vec2<f32>) -> vec2<f32> {
   return vec2<f32>(seam, hash21(cell));
 }
 
+// Dazzle: the angular patches of black, white and greys and blues that broke up a ship's lines from 1917, so that her speed and heading were
+// hard to judge. Laid out in ship space: her sides are cut into blocks along her length, each block crossed by stripes at its own angle and
+// width, and a second cut across them makes the wedges. Hard edged; `seed` makes each ship's pattern her own.
+fn dazzle_colour(obj: vec3<f32>, n: vec3<f32>, seed: f32) -> vec3<f32> {
+  let along = select(obj.x, obj.z, abs(n.x) > 0.6);
+  let y = obj.y;
+  let blk = floor(along / 17.0 + seed * 0.37);
+  let h1 = hash21(vec2<f32>(blk, seed));
+  let h2 = hash21(vec2<f32>(blk + 7.0, seed * 1.7));
+  let ang = (h1 - 0.5) * 2.5;
+  let width = 2.4 + 3.4 * h2;
+  let k = floor((along * sin(ang) + y * cos(ang)) / width);
+  let cut = ang * 1.7 + 0.6;
+  let k2 = floor((along * cos(cut) - y * sin(cut)) / (width * 2.3));
+  let first = hash21(vec2<f32>(k + blk * 3.1, seed + 11.0));
+  let second = hash21(vec2<f32>(k2 + 5.0, blk + seed));
+  let p = select(first, second, hash21(vec2<f32>(k, k2 + blk)) > 0.55);
+  if (p < 0.28) { return vec3<f32>(0.012, 0.012, 0.014); }
+  if (p < 0.52) { return vec3<f32>(0.50, 0.51, 0.52); }
+  if (p < 0.70) { return vec3<f32>(0.20, 0.215, 0.23); }
+  if (p < 0.86) { return vec3<f32>(0.04, 0.055, 0.085); }
+  return vec3<f32>(0.12, 0.19, 0.27);
+}
+
 fn hull_surface(obj: vec3<f32>, n: vec3<f32>, dx: vec3<f32>, dy: vec3<f32>) -> Surf {
   let pl = plating(obj, n, vec2<f32>(3.1, 1.55));
   var col = ship.hull_grey.rgb * (0.93 + 0.14 * pl.y);
+  if (ship.misc.w > 0.0) {
+    col = mix(col, dazzle_colour(obj, n, ship.misc.w) * (0.93 + 0.14 * pl.y), smoothstep(-0.7, -0.3, obj.y));
+  }
   col *= 1.0 - 0.15 * pl.x;
 
   // Above the waterline: the plating's own detail, then the weathering, in proportion to how long she has been at sea.
@@ -196,7 +244,11 @@ fn steel_surface(obj: vec3<f32>, n: vec3<f32>, base: vec3<f32>, plate: vec2<f32>
   let wear = tri(L_WEAR, obj, n, 0.2, dx, dy);
   let grime = tri(L_GRIME, obj, n, 0.13, dx, dy).r;
   var s: Surf;
-  var col = base * (0.94 + 0.12 * pl.y) * (1.0 - 0.16 * pl.x);
+  var tint = base;
+  if (ship.misc.w > 0.0) {
+    tint = dazzle_colour(obj, n, ship.misc.w);
+  }
+  var col = tint * (0.94 + 0.12 * pl.y) * (1.0 - 0.16 * pl.x);
   col *= 1.0 + (detail.r - 0.5) * 0.7;
   let blotch = smoothstep(0.32, 0.7, fbm(obj.xz * 0.12 + obj.y * 0.17, 3));
   let rust = clamp(wear.r * weathering * 0.55 * mix(0.18, 1.0, blotch), 0.0, 1.0);
@@ -331,6 +383,115 @@ fn with_decals(base: Surf, obj: vec3<f32>, n: vec3<f32>, dx: vec3<f32>, dy: vec3
   return s;
 }
 
+// A navy's ensign: `u` along the cloth from the hoist, `v` up from the bottom; the flag is twice as long as it is high. Drawn small, as it
+// is seen from a long way off: the colours and the cross, with the canton in the corner of the hoist.
+fn ensign(kind: i32, u: f32, v: f32) -> vec3<f32> {
+  let white = vec3<f32>(0.70, 0.70, 0.68);
+  let red = vec3<f32>(0.34, 0.012, 0.016);
+  let blue = vec3<f32>(0.008, 0.02, 0.13);
+  let black = vec3<f32>(0.012);
+  let x = u * 2.0;
+  let y = v;
+  var c = white;
+  if (kind == 0) {
+    // The White Ensign: a red cross, and the Union flag in the upper hoist quarter.
+    if (x < 1.0 && y > 0.5) {
+      let a = x * 2.0 - 1.0;
+      let b = (y - 0.75) * 2.0;
+      let d1 = abs(b - 0.5 * a) / 1.118;
+      let d2 = abs(b + 0.5 * a) / 1.118;
+      c = blue;
+      if (d1 < 0.085 || d2 < 0.085) { c = white; }
+      if (min(d1, d2) < 0.03) { c = red; }
+      if (abs(b) < 0.17 || abs(a) < 0.17) { c = white; }
+      if (abs(b) < 0.1 || abs(a) < 0.1) { c = red; }
+    } else if (abs(x - 1.0) < 0.1 || abs(y - 0.5) < 0.1) {
+      c = red;
+    }
+  } else if (kind == 1) {
+    // The Imperial German ensign: a black cross on white, and in the canton the black, white and red of the Reich.
+    if (x < 1.0 && y > 0.5) {
+      let band = (y - 0.5) * 2.0;
+      c = select(select(red, white, band > 0.34), black, band > 0.67);
+    } else if (abs(x - 1.0) < 0.085 || abs(y - 0.5) < 0.085) {
+      c = black;
+    }
+  } else {
+    // The naval ensign of the Second World War: a red field and a white disc, with a black cross in it. (The emblem that the real flag
+    // carries in the disc is not drawn.)
+    c = red;
+    let q = vec2<f32>(x - 1.0, y - 0.5);
+    if (x < 1.0 && y > 0.5) {
+      c = white;
+      if (abs(x - 0.5) < 0.05 || abs(y - 0.75) < 0.05) { c = black; }
+    } else if (length(q) < 0.34) {
+      c = white;
+      if (abs(q.x) < 0.07 || abs(q.y) < 0.07) { c = black; }
+    }
+  }
+  return c;
+}
+
+// ---- lettering: her hull number and the letters of her turrets, painted in white ---------------------------------------------------
+const GLYPH_CELL: f32 = 128.0;
+
+// How much of a pixel the glyph `idx` covers at (cu, cv) in its cell (cv up), read from the atlas at a level that suits the pixel's size.
+fn glyph_cover(idx: i32, cu: f32, cv: f32, lod: f32) -> f32 {
+  let col = f32(idx % 6);
+  let row = f32(idx / 6);
+  let uv = (vec2<f32>(col, row) + vec2<f32>(clamp(cu, 0.0, 1.0), clamp(1.0 - cv, 0.0, 1.0))) / 6.0;
+  let a = textureSampleLevel(glyph_tex, weather_samp, uv, lod).r;
+  return smoothstep(0.35, 0.65, a);
+}
+
+// The hull number on the bow, read the right way up from each side of her (so it runs toward the bow on her starboard side and toward
+// the stern on her port). `footprint` is the metres one pixel covers here.
+fn hull_number(obj: vec3<f32>, n: vec3<f32>, footprint: f32) -> f32 {
+  let count = i32(ship.marks.w + 0.5);
+  if (count == 0 || abs(n.z) < 0.55) {
+    return 0.0;
+  }
+  let h = ship.marks.z;
+  let adv = h * 0.78;
+  let side = select(-1.0, 1.0, n.z > 0.0);
+  let t = side * (obj.x - ship.marks.x) / adv + 0.5 * f32(count);
+  let v = (obj.y - ship.marks.y) / h + 0.5;
+  if (t < 0.0 || t >= f32(count) || v < 0.0 || v > 1.0) {
+    return 0.0;
+  }
+  let i = i32(floor(t));
+  let g = i32(ship.mark_glyphs[i] + 0.5);
+  return glyph_cover(g, fract(t), v, log2(max(footprint * GLYPH_CELL / h, 1.0)));
+}
+
+// A turret's letter, on both sides of the house and on its roof (where the aircraft and the camera look down on it: its top is toward the guns).
+fn turret_letter(node: u32, obj: vec3<f32>, n: vec3<f32>, footprint: f32) -> f32 {
+  let a = ship.node_mark[node * 2u];
+  if (a.x < 0.5) {
+    return 0.0;
+  }
+  let b = ship.node_mark[node * 2u + 1u];
+  let g = i32(a.x + 0.5) - 1;
+  var h = a.y;
+  var u = 0.0;
+  var v = 0.0;
+  if (abs(n.z) > 0.7) {
+    let side = select(-1.0, 1.0, n.z > 0.0);
+    u = side * (obj.x - a.z) / (h * 0.78) + 0.5;
+    v = (obj.y - a.w) / h + 0.5;
+  } else if (n.y > 0.7 && obj.y > b.z - 0.4) {
+    h = b.y;
+    u = (obj.z - b.x) / (h * 0.78) + 0.5;
+    v = (obj.x - a.z) / h + 0.5;
+  } else {
+    return 0.0;
+  }
+  if (u < 0.0 || u > 1.0 || v < 0.0 || v > 1.0) {
+    return 0.0;
+  }
+  return glyph_cover(g, u, v, log2(max(footprint * GLYPH_CELL / h, 1.0)));
+}
+
 // A node that has been burnt: blackened and roughened, with the odd ember still glowing in it. `k` is how far gone it is, 0..1.
 fn charred(base: Surf, obj: vec3<f32>, k: f32) -> Surf {
   var s = base;
@@ -413,7 +574,30 @@ fn fs(in: VOut) -> @location(0) vec4<f32> {
   if (dot(n, v) < 0.0) {
     n = -n; // thin sheets (decks, plates) are lit from both sides
   }
-  var s = surface(in.ids, in.aux, in.obj, in.nrm_obj, dpx, dpy);
+  let node = in.ids & 0xffu;
+  let material = (in.ids >> 8u) & 0xffu;
+  var s: Surf;
+  if (material == M_FLAG) {
+    // Cloth: matt, and the same pattern on both sides.
+    s.albedo = ensign(i32(ship.flags.z + 0.5), in.uv.x, in.uv.y);
+    s.rough = 0.92;
+    s.metal = 0.0;
+    s.ao = 1.0;
+    s.emit = vec3<f32>(0.0);
+  } else {
+    s = surface(in.ids, in.aux, in.obj, in.nrm_obj, dpx, dpy);
+  }
+  // Her hull number on the bow, and the letters of her turrets, in white paint (worn a little, as the rest of her is).
+  var lettering = 0.0;
+  if (node == 0u && material == M_HULL) {
+    lettering = hull_number(in.obj, normalize(in.nrm_obj), max(length(dpx), length(dpy)));
+  } else if (node != 0u && material == M_TURRET) {
+    lettering = turret_letter(node, in.obj, normalize(in.nrm_obj), max(length(dpx), length(dpy)));
+  }
+  if (lettering > 0.0) {
+    s.albedo = mix(s.albedo, vec3<f32>(0.68, 0.68, 0.65) * (1.0 - 0.32 * ship.clock.y), lettering * 0.95);
+    s.rough = mix(s.rough, 0.78, lettering);
+  }
   if (tear_char > 0.0) {
     s = charred(s, in.obj, tear_char * 0.95);
     s.emit += vec3<f32>(1.0, 0.32, 0.06) * tear_heat * (0.55 + 0.45 * fbm(in.obj.zy * 1.7 + vec2<f32>(ship.clock.x * 0.2, 0.0), 3)) * 1.6;
@@ -424,7 +608,6 @@ fn fs(in: VOut) -> @location(0) vec4<f32> {
   }
 
   // A turret that has been wrecked, and anything else burnt, is black, and the odd ember glows in it.
-  let node = in.ids & 0xffu;
   let burnt = ship.node_char[node >> 2u][node & 3u];
   if (burnt > 0.0) {
     s = charred(s, in.obj, burnt);
