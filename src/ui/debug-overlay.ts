@@ -1,9 +1,10 @@
-/** Top-left stats readout plus the probe button and result panel. Plain DOM; replaced by the real HUD later. */
+/**
+ * Top-left stats readout and the panel the GPU probe and the Perf survey write their log and report into. Both are started by URL
+ * (`?probe`, `?survey=1`, `?survey=ship`, `?survey=sea`): there are no buttons for them on the screen.
+ */
 export class DebugOverlay {
   private readonly stats: HTMLDivElement;
   private readonly panel: HTMLDivElement;
-  private readonly probeButton: HTMLButtonElement;
-  private readonly surveyButton: HTMLButtonElement;
   private readonly copyButton: HTMLButtonElement;
   private lines: string[] = [];
   private json = '';
@@ -21,20 +22,13 @@ export class DebugOverlay {
       this.render();
     });
 
+    // The only button: it appears with a report, to copy it.
     const row = document.createElement('div');
-    this.probeButton = document.createElement('button');
-    this.probeButton.className = 'button';
-    this.probeButton.textContent = 'Run GPU probe';
-    this.surveyButton = document.createElement('button');
-    this.surveyButton.className = 'button';
-    this.surveyButton.textContent = 'Perf survey';
-    this.surveyButton.style.marginLeft = '8px';
     this.copyButton = document.createElement('button');
     this.copyButton.className = 'button';
     this.copyButton.textContent = 'Copy JSON';
     this.copyButton.hidden = true;
-    this.copyButton.style.marginLeft = '8px';
-    row.append(this.probeButton, this.surveyButton, this.copyButton);
+    row.append(this.copyButton);
 
     this.panel = document.createElement('div');
     this.panel.className = 'panel probe-output';
@@ -58,24 +52,6 @@ export class DebugOverlay {
   private render(): void {
     const lines = this.text.split('\n');
     this.stats.textContent = this.expanded || lines.length < 3 ? this.text : `${lines[0]}  |  ${lines[2]}`;
-  }
-
-  onProbe(handler: () => void): void {
-    this.probeButton.addEventListener('click', handler);
-  }
-
-  onSurvey(handler: () => void): void {
-    this.surveyButton.addEventListener('click', handler);
-  }
-
-  setSurveyRunning(running: boolean): void {
-    this.surveyButton.disabled = running;
-    this.surveyButton.textContent = running ? 'Surveying...' : 'Perf survey';
-  }
-
-  setProbeRunning(running: boolean): void {
-    this.probeButton.disabled = running;
-    this.probeButton.textContent = running ? 'Probing...' : 'Run GPU probe';
   }
 
   resetProbeLog(): void {

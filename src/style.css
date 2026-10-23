@@ -1327,7 +1327,7 @@ body[data-torpedo='1'] .ghints:not(.thints) {
   color: #ff7a5c;
 }
 
-/* The shell camera and replay buttons: top left, under the debug buttons and clear of the telegraph, the log and the cards. */
+/* The shell camera and replay buttons: top left, under the debug readout and clear of the telegraph, the log and the cards. */
 .gtouch .shellcam {
   left: max(16px, env(safe-area-inset-left));
   top: 120px;

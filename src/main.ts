@@ -524,7 +524,6 @@ async function boot(): Promise<void> {
   const startProbe = async () => {
     if (probing) return;
     probing = true;
-    overlay.setProbeRunning(true);
     overlay.resetProbeLog();
     try {
       // Rendering is paused while probing: a running scene would contaminate the timings.
@@ -537,10 +536,9 @@ async function boot(): Promise<void> {
       overlay.appendProbeLog(`probe crashed: ${String(err)}`);
     } finally {
       probing = false;
-      overlay.setProbeRunning(false);
     }
   };
-  overlay.onProbe(() => void startProbe());
+  // ?probe runs the GPU probe (there is no button for it); the report lands in the overlay's panel.
   if (q.has('probe')) void startProbe();
 
   // Per-feature cost survey: fixed resolution, one configuration at a time. The scaler stands down meanwhile.
@@ -606,7 +604,6 @@ async function boot(): Promise<void> {
   const survey = new PerfSurvey(sea, (scale) => (sizer.renderScale = scale), () => sizer.width * sizer.height, startBattle, startScreen, surveyScenes);
   const startSurvey = async (only: 'all' | 'ship' | 'sea' = 'all') => {
     if (survey.running || probing) return;
-    overlay.setSurveyRunning(true);
     overlay.resetProbeLog();
     overlay.appendProbeLog('Perf survey: do not touch the screen for about a minute.');
     try {
@@ -640,11 +637,9 @@ async function boot(): Promise<void> {
     } catch (err) {
       overlay.appendProbeLog(`survey crashed: ${String(err)}`);
     } finally {
-      overlay.setSurveyRunning(false);
       if (fixedScale === null) sizer.renderScale = scaler.scale;
     }
   };
-  overlay.onSurvey(() => void startSurvey());
   // ?survey=1 is the whole survey; ?survey=ship the shorter one of the ship alone; ?survey=sea the half-minute A/B of the sea's culling.
   if (q.has('survey')) void startSurvey(q.get('survey') === 'ship' ? 'ship' : q.get('survey') === 'sea' ? 'sea' : 'all');
 
@@ -1015,7 +1010,7 @@ async function boot(): Promise<void> {
           `${fps.toFixed(0)} fps   sim tick ${tick}`,
           `${sizer.width}x${sizer.height}  scale ${sizer.renderScale.toFixed(2)} (${scaler.changes} changes)  ocean ${oceanSize} (${Math.round(sea.oceanArc.drawnFraction * 100)}% of the grid drawn)  msaa ${msaa}`,
           gpuLine,
-          `* GPU phase times are hints on Apple GPUs; use Perf survey for real costs.`,
+          `* GPU phase times are hints on Apple GPUs; ?survey=1 measures real costs.`,
           `gpu errors: ${gpu.errors.length}   input ${input.activeDevice}`,
         ].join('\n'),
       );
