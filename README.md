@@ -21,6 +21,10 @@ A battleship does not aim a gun. You pick a target, the rangefinder reads her, t
 | ![Bismarck in her Baltic scheme](docs/screenshots/bismarck-baltic.jpg) | ![The sea at golden hour](docs/screenshots/sea-golden-hour.jpg) |
 | Bismarck in her Baltic scheme of May 1941, as she comes into the Denmark Strait | The sea at golden hour |
 
+![Bismarck abeam in her Baltic scheme: chevrons of black and white stripes forward and aft, dark ends with a false bow wave and stern wave](docs/screenshots/bismarck-broadside.jpg)
+
+Bismarck abeam, in the Baltic scheme she wore for the photographs of May 1941: chevrons of black and white stripes forward and aft of the superstructure to confuse her heading, and dark grey ends with a painted false bow wave and stern wave to make her look shorter. She wears it in the Denmark Strait; by the Last Stand she is plain grey, as she was in fact by then.
+
 
 ## What is in it
 
