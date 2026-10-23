@@ -56,7 +56,15 @@ export class PlayerShip extends ShipActor {
     this.body.kick(-0.012, 0.004);
   }
 
-  /** Per rendered frame: float on the waves and animate turrets. */
+  /** A battery of her own without a combatant (the showcase URLs): its kicks are hers too. */
+  protected override drainKicks(): void {
+    super.drainKicks();
+    if (this.combatant || !this.battery) return;
+    const kick = this.battery.drainKick();
+    if (kick.roll !== 0 || kick.pitch !== 0) this.body.kick(kick.roll, kick.pitch);
+  }
+
+  /** Per rendered frame: draw her between steps and animate turrets. */
   override updateRender(alpha: number, dt: number): void {
     super.updateRender(alpha, dt);
     this.clock += dt;
@@ -64,8 +72,6 @@ export class PlayerShip extends ShipActor {
     if (this.combatant && !this.sweep && !this.hold) return;
     const battery = this.battery;
     if (battery && !this.sweep && !this.hold) {
-      const kick = battery.drainKick();
-      if (kick.roll !== 0 || kick.pitch !== 0) this.body.kick(kick.roll, kick.pitch);
       battery.turrets.forEach((t, i) => {
         this.instance.rig.setTurret(t.mount.id, t.train, t.elev);
         const ref = this.model.turrets[i]!;

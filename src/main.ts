@@ -914,6 +914,8 @@ async function boot(): Promise<void> {
           }
         }
         shellSlow = shellCam.active ? shellCam.timeScale : 1;
+        // The sea keeps the game's clock, so the smoke, spray and flame keep it too: a slowed splash is slow all through.
+        sea.fxTimeScale = shellSlow;
         if (shellShot) {
           camera.position = shellShot.position;
           camera.lookAt(shellShot.look[0], shellShot.look[1], shellShot.look[2]);

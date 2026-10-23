@@ -132,7 +132,7 @@ export class SeaRenderer {
   };
   /** Gunnery spectacle: muzzle blasts, splashes, bursts, tracers. */
   readonly fx: Effects;
-  /** Time (s) the ocean and clouds have been advanced. Set `frozenTime` to pin it for screenshots. */
+  /** Time (s) the ocean and clouds are drawn at: the simulation clock, unless `frozenTime` pins it for screenshots. */
   time = 0;
   frozenTime: number | null = null;
   /** How fast the smoke, spray and flames of the picture run against the clock: a replay in slow motion runs them slow. */
@@ -377,6 +377,11 @@ export class SeaRenderer {
     return heightFromModes(this.field.waveModes, x, z, this.time);
   }
 
+  /** The same, at a given moment of the clock: the simulation floats the ships at the time of its own step, not the frame's. */
+  waveHeightAtTime(x: number, z: number, t: number): number {
+    return heightFromModes(this.field.waveModes, x, z, t);
+  }
+
   /** Significant wave height estimate (m) used only for shading; the real field comes from the spectrum. */
   private estimateHs(): number {
     const { windSpeed: u, fetchKm } = this.params;
@@ -387,8 +392,11 @@ export class SeaRenderer {
   frame(dtSeconds: number, camera: Camera): void {
     const { device } = this.gpu;
     const p = this.params;
-    if (this.frozenTime !== null) this.time = this.frozenTime;
-    else this.time += dtSeconds;
+    // The sea keeps the simulation's clock (unless pinned for a picture): the ships float on it at their steps, so the waves drawn
+    // must be the waves they were floated on, and a slowed or hurried game slows or hurries its sea with it.
+    const now = this.frozenTime ?? this.simTime;
+    const seaDt = Math.max(now - this.time, 0);
+    this.time = now;
     const loopedTime = this.time % OCEAN_LOOP_SECONDS;
 
     // Sun.
@@ -485,7 +493,7 @@ export class SeaRenderer {
     }
     if (!this.debug.freezeOcean) {
       const oceanPass = encoder.beginComputePass({ label: 'ocean', timestampWrites: this.timer?.compute('ocean') });
-      this.field.encode(oceanPass, loopedTime, p.choppiness, FOAM, dtSeconds);
+      this.field.encode(oceanPass, loopedTime, p.choppiness, FOAM, seaDt);
       oceanPass.end();
     }
     encoder.copyBufferToBuffer(this.atmosphere.ambientBuffer, 0, this.sceneBuffer, SCENE_AMBIENT_BYTE_OFFSET, 16);

@@ -67,6 +67,8 @@ const LAUNCH_SIGHT = 9000;
 const SPREAD_STEP = 2;
 /** Metres the sight must move the hand-laid aim before the elevation (a ballistic solution) is worked out again. */
 const HAND_AIM_STEP = 40;
+/** A fingerprint of the fight is kept every this many steps (ten seconds), for the test that two runs of one seed agree. */
+const CHECKPOINT_TICKS = 600;
 
 /** What the bridge calls a secondary battery, by its bore. */
 function secondaryName(boreMm: number): string {
@@ -242,6 +244,10 @@ export class Game {
   private readonly setups = new Map<Combatant, ShipSetup>();
   private readonly seed: number;
   private readonly practice: boolean;
+  /** The random shove of a hit, drawn from the fight's own seed so that the fight is the same fight every time. */
+  private readonly kickRng: Rng;
+  /** A fingerprint of the state at every CHECKPOINT_TICKS steps, by step number: two runs of one seed must agree on every one. */
+  readonly checkpoints = new Map<number, string>();
   readonly pace: Pace;
   /** The ship she commands, as built and refitted. */
   readonly playerSetup: ShipSetup;
@@ -276,6 +282,7 @@ export class Game {
   ) {
     const seed = options.seed ?? 1914;
     this.seed = seed;
+    this.kickRng = new Rng(seed ^ 0x3a9f);
     this.practice = options.practice === true;
     const pace = options.pace ?? REAL;
     this.pace = pace;
@@ -583,7 +590,7 @@ export class Game {
       // A shell that bursts in her is felt through the hull: a shove that rolls and pitches her, in proportion to its weight.
       if (mark.kind === 'burst' || mark.kind === 'shatter') {
         const weight = Math.min(mark.caliberM / 0.38, 1.3) * (mark.kind === 'burst' ? 1 : 0.4);
-        actor.body.kick((Math.random() < 0.5 ? -1 : 1) * 0.012 * weight, (Math.random() - 0.5) * 0.008 * weight);
+        actor.body.kick((this.kickRng.next() < 0.5 ? -1 : 1) * 0.012 * weight, (this.kickRng.next() - 0.5) * 0.008 * weight);
       }
       if (ours && mark.kind === 'burst') this.cue('hit-taken');
     };
@@ -972,6 +979,10 @@ export class Game {
 
     const events = this.playerCombatant.step(dt, simTime, playerTriggers);
     this.enemies.forEach((e, i) => e.combatant.step(dt, simTime, enemyTriggers[i]!));
+    // Every ship floats on the waves of this moment, with the shove of what she has just fired: on the fixed step, like all else
+    // the guns are laid from, so that a fight does not depend on the frame rate.
+    this.player.stepBody(dt, simTime);
+    for (const e of this.enemies) e.stepBody(dt, simTime);
 
     this.torpedoEvents(this.arena.step(dt));
     if (this.terrain) this.shoreStep(dt, simTime, events);
@@ -979,6 +990,20 @@ export class Game {
     for (const c of this.combatants()) this.collectReports(c);
     this.judge();
     this.callSightings();
+    const tick = Math.round(simTime * 60);
+    if (tick % CHECKPOINT_TICKS === 0) this.checkpoints.set(tick, this.fingerprint());
+  }
+
+  /** The state of the fight in a line: where every ship is and how she lies, and what the guns have done. */
+  private fingerprint(): string {
+    const f = (v: number) => v.toFixed(5);
+    const ship = (a: ShipActor) => {
+      const d = a.dynamics;
+      const fr = a.frame;
+      return `${f(d.x)},${f(d.z)},${f(d.heading)},${f(d.speed)},${f(fr.y)},${f(fr.pitch)},${f(fr.roll)}`;
+    };
+    const p = this.playerCombatant;
+    return [ship(this.player), ...this.enemies.map(ship), p.shellsFired, p.hitsScored, p.hitsTaken, this.arena.torpedoes.torpedoes.length].join('|');
   }
 
   /** Running aground: the shoal stops her where she is, and a strike at speed opens her bottom. */

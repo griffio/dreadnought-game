@@ -26,8 +26,8 @@ function lerpAngle(a: number, b: number, t: number): number {
 }
 
 /**
- * A ship in the world: manoeuvring dynamics stepped on the fixed simulation clock, wave-following on the render clock,
- * and a wake. The player's ship and every other ship are these; they differ in who gives the orders.
+ * A ship in the world: manoeuvring dynamics and wave-following, both stepped on the fixed simulation clock (so that a fight is the
+ * same fight at any frame rate: her roll and pitch are the guns' platform), and a wake. The player's ship and every other ship are these; they differ in who gives the orders.
  */
 export class ShipActor implements WakeSource {
   readonly dynamics: ShipDynamics;
@@ -38,6 +38,8 @@ export class ShipActor implements WakeSource {
   readonly hull: WakeSource['hull'];
 
   protected prev = { x: 0, z: 0, heading: 0 };
+  /** How she lay in the water at the start of the last step, for drawing her between steps. */
+  private prevBody = { heave: 0, pitch: 0, roll: 0 };
   /** What has happened to her: she lists, settles and finally goes under as it grows. */
   damage: ShipDamage | null = null;
   /** Her guns and tubes, when she fights: the turrets in the picture follow them. */
@@ -101,6 +103,33 @@ export class ShipActor implements WakeSource {
     );
   }
 
+  /**
+   * Float her on the waves for one fixed step: the water under her hull at this moment of the simulation, the lean of a turn, her list,
+   * trim and settling, and the kicks of her own guns. After the guns have been stepped (their recoil is drained here).
+   */
+  stepBody(dt: number, simTime: number): void {
+    const d = this.dynamics;
+    const b = this.body;
+    this.prevBody.heave = b.heave;
+    this.prevBody.pitch = b.pitch;
+    this.prevBody.roll = b.roll;
+    this.drainKicks();
+    const headingDeg = (d.heading * 180) / Math.PI;
+    const plane = fitWaterPlane((x, z) => this.sea.waveHeightAtTime(x, z, simTime), d.x, d.z, headingDeg, this.model.length, this.model.beam);
+    const dm = this.damage;
+    // A ship broken in two does not capsize as a whole: she floats on the waves, and the halves go down by themselves.
+    const whole = this.broken === null;
+    b.update(dt, plane, d.turnHeel + (whole ? dm?.list ?? 0 : 0), whole ? dm?.trim ?? 0 : 0, whole ? dm?.sinkage ?? 0 : 0);
+  }
+
+  /** The shove of each broadside fired since the last step, into her roll and pitch. */
+  protected drainKicks(): void {
+    for (const unit of this.combatant?.batteries ?? []) {
+      const kick = unit.gunnery.battery.drainKick();
+      if (kick.roll !== 0 || kick.pitch !== 0) this.body.kick(kick.roll, kick.pitch);
+    }
+  }
+
   /** Velocity over the ground, m/s. */
   get velocity(): [number, number] {
     const d = this.dynamics;
@@ -120,14 +149,12 @@ export class ShipActor implements WakeSource {
     return { x: p.x, z: p.z, headingDeg: p.headingDeg, speed: this.dynamics.speed };
   }
 
-  /** Lay the turrets in the picture on the guns and tubes of the combatant: train, elevation, recoil, and the kick of a broadside. */
+  /** Lay the turrets in the picture on the guns and tubes of the combatant: train, elevation and recoil. */
   protected followGuns(): void {
     const c = this.combatant;
     if (!c) return;
     for (const unit of c.batteries) {
       const battery = unit.gunnery.battery;
-      const kick = battery.drainKick();
-      if (kick.roll !== 0 || kick.pitch !== 0) this.body.kick(kick.roll, kick.pitch);
       battery.turrets.forEach((t, i) => {
         const ref = this.model.turrets.find((r) => r.id === t.mount.id);
         if (!ref) return;
@@ -265,7 +292,7 @@ export class ShipActor implements WakeSource {
     this.history.record(s.x - Math.sin(h) * aft, s.z + Math.cos(h) * aft, t, s.speed, s.power);
   }
 
-  /** Per rendered frame: interpolate the pose and float on the waves. */
+  /** Per rendered frame: draw her where she is between steps (position, heading, and how she lies in the water). */
   updateRender(alpha: number, dt: number): void {
     const d = this.dynamics;
     const pose = this.instance.pose;
@@ -273,19 +300,7 @@ export class ShipActor implements WakeSource {
     pose.z = this.prev.z + (d.z - this.prev.z) * alpha;
     const heading = lerpAngle(this.prev.heading, d.heading, alpha);
     pose.headingDeg = ((((heading * 180) / Math.PI) % 360) + 360) % 360;
-
-    const plane = fitWaterPlane(
-      (x, z) => this.sea.waveHeightAt(x, z),
-      pose.x,
-      pose.z,
-      pose.headingDeg,
-      this.model.length,
-      this.model.beam,
-    );
     const dm = this.damage;
-    // A ship broken in two does not capsize as a whole: she floats on the waves, and the halves go down by themselves.
-    const whole = this.broken === null;
-    this.body.update(dt, plane, d.turnHeel + (whole ? dm?.list ?? 0 : 0), whole ? dm?.trim ?? 0 : 0, whole ? dm?.sinkage ?? 0 : 0);
     if (dm && dm.status === 'sunk' && !this.gone) {
       this.gone = true;
       this.instance.visible = false;
@@ -295,9 +310,11 @@ export class ShipActor implements WakeSource {
       this.split = { x: this.broken.x, age: this.simNow - this.broken.at, sunk: (dm?.sunkDepth ?? 0) / TUNING.sunkDepth };
       this.showSplit(this.split);
     }
-    pose.heave = this.body.heave;
-    pose.pitch = this.body.pitch;
-    pose.roll = this.body.roll;
+    const b = this.body;
+    const pb = this.prevBody;
+    pose.heave = pb.heave + (b.heave - pb.heave) * alpha;
+    pose.pitch = pb.pitch + (b.pitch - pb.pitch) * alpha;
+    pose.roll = pb.roll + (b.roll - pb.roll) * alpha;
     this.followGuns();
     this.showDamage();
     this.streamFlags(pose.headingDeg, Math.abs(d.speed), dt);
