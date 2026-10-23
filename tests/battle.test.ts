@@ -62,7 +62,9 @@ describe('the destroyer attack, headless', () => {
 
   it('the secondary battery makes her pay for the run: most of the destroyers are beaten before the end', () => {
     const r = campaign(1, 'head-on', more);
-    expect(r.destroyersBeaten).toBeGreaterThanOrEqual(more.length * 0.7);
+    // More than half within the quarter hour. (It was 70% while a shell that fell short could fly on through the water at full speed
+    // and strike her below the belt; now only the dive model reaches her there, and the 12-pounders finish about 7 boats in 12.)
+    expect(r.destroyersBeaten).toBeGreaterThanOrEqual(more.length * 0.5);
   }, 300_000);
 
   it('smoke across the line of sight shuts the rangefinder, and the plot goes on from where it was', () => {

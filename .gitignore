@@ -22,3 +22,6 @@ public/sfx-review/
 public/voice-review/
 public/whistle-review/
 perf-results/
+
+# wrangler state (the Pages deploy runs with npx; see memory/README)
+.wrangler/

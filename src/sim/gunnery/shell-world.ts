@@ -173,15 +173,27 @@ export class ShellWorld {
       stepShell(s, shell.spec, this.env, dt);
 
       let consumed = false;
+      // A ship can be struck directly only above the water: the part of this step below the surface is the sea's, and a shell that
+      // goes in near a ship reaches her hull, if it does, through the dive below (slowed and turned by the water), not by flying on
+      // through it as if it were air.
+      let ex = s.x;
+      let ey = s.y;
+      let ez = s.z;
+      if (py > 0 && s.y < 0) {
+        const f = py / (py - s.y);
+        ex = px + (s.x - px) * f;
+        ey = 0;
+        ez = pz + (s.z - pz) * f;
+      }
       for (const box of boxes) {
         if (box.id === shell.shooter || shell.passed.includes(box.id)) continue;
-        const hit = segmentHitsBox(px, py, pz, s.x, s.y, s.z, box);
+        const hit = segmentHitsBox(px, py, pz, ex, ey, ez, box);
         if (!hit) continue;
         const speed = Math.hypot(s.vx, s.vy, s.vz);
         const angleDeg = (Math.atan2(-s.vy, Math.hypot(s.vx, s.vz)) * 180) / Math.PI;
         let outcome: ImpactResolution | null = null;
         if (box.resolve) {
-          outcome = box.resolve({ shell, from: [px, py, pz], to: [s.x, s.y, s.z], velocity: [s.vx, s.vy, s.vz] });
+          outcome = box.resolve({ shell, from: [px, py, pz], to: [ex, ey, ez], velocity: [s.vx, s.vy, s.vz] });
           // Nothing on its path inside the box: it flies on.
           if (!outcome) continue;
         }

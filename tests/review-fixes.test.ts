@@ -326,3 +326,40 @@ describe('shells between steps', () => {
     expect(s.z).toBeLessThan(zBefore);
   });
 });
+
+describe('a shell that goes into the sea beside a ship', () => {
+  it('does not strike her hull below the waterline by flying on through the water: it splashes, and may dive', async () => {
+    const { ShellWorld } = await import('../src/sim/gunnery/shell-world');
+    const world = new ShellWorld(CALM);
+    const shell = world.spawn(
+      { salvo: 1, turret: 0, gun: 0, muzzle: [0, 10, 0], azimuth: 0, elevation: 0, velocityScale: 1, shipVx: 0, shipVz: 0, direction: [0, 0, -1] },
+      GUN_12_45_MK_X.shell,
+      1,
+    );
+    // Hand it a fall that goes into the sea some 20 m short of a hull box and, below the surface, would reach the box's underwater
+    // side in the same step (the box's near end is at z = -180; the shell crosses the surface at about z = -160).
+    const st = shell.state;
+    st.x = 0;
+    st.y = 20;
+    st.z = -100;
+    st.vx = 0;
+    st.vy = -260;
+    st.vz = -800;
+    let dives = 0;
+    const box = { id: 2, x: 0, z: -260, heading: 0, halfLength: 80, halfBeam: 12.5, draft: 8, height: 16, resolveDive: () => (dives++, null) };
+    const events = world.step(0.1, [box]);
+    const kinds = events.map((e) => e.kind);
+    expect(kinds).toEqual(['splash']);
+    expect(dives).toBe(1);
+    // The same path, above water all the way, is a hit.
+    const world2 = new ShellWorld(CALM);
+    const s2 = world2.spawn({ salvo: 1, turret: 0, gun: 0, muzzle: [0, 10, 0], azimuth: 0, elevation: 0, velocityScale: 1, shipVx: 0, shipVz: 0, direction: [0, 0, -1] }, GUN_12_45_MK_X.shell, 1).state;
+    s2.x = 0;
+    s2.y = 30;
+    s2.z = -120;
+    s2.vx = 0;
+    s2.vy = -200;
+    s2.vz = -800;
+    expect(world2.step(0.1, [box]).map((e) => e.kind)).toEqual(['hit']);
+  });
+});

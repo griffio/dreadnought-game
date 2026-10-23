@@ -49,6 +49,12 @@ import { TorpedoHud } from './ui/torpedo-hud';
 import { TutorialHud } from './ui/tutorial-hud';
 
 const SIM_HZ = 60;
+
+// Installed as a web app, the game keeps its page and assets so that it opens from the home screen without the network. Only a
+// built, served copy registers the worker: the dev server and the tests run without one.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => void navigator.serviceWorker.register('/sw.js').catch((err) => console.warn('service worker:', err)));
+}
 /** The director's sight looks out of the foretop: none of her own ship nearer than this to the lens is drawn, metres. */
 const SIGHT_CUTAWAY_M = 14;
 /** How much of the fight the replay starts with: the last half minute when asked for in the fight, a little more from the result screen. */
