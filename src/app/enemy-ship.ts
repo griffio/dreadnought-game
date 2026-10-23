@@ -6,6 +6,7 @@ import { Combatant, setupExtras } from '../sim/combat/combatant';
 import { DestroyerAi, TORPEDO_ATTACK, type DestroyerProfile } from '../sim/combat/destroyer-ai';
 import type { ShipSetup } from '../sim/combat/setup';
 import type { Environment } from '../sim/gunnery/ballistics';
+import { ENEMY_SOLVE_PERIOD, enemyAiSeed } from '../sim/combat/convention';
 import { Rng } from '../sim/rng';
 import { rudderForCourse } from '../sim/ships/autopilot';
 import { TELEGRAPH_MIN } from '../sim/ships/dynamics';
@@ -70,13 +71,13 @@ export class EnemyShip extends ShipActor {
       env: opts.env,
       visibilityKm: opts.visibilityKm,
       seed: opts.seed,
-      solvePeriod: 0.5,
+      solvePeriod: ENEMY_SOLVE_PERIOD,
       torpedoes: opts.torpedoes,
       smoke: opts.smoke,
       ...setupExtras(setup),
     });
     this.damage = this.combatant.damage;
-    const rng = new Rng(opts.seed ^ 0x51ed);
+    const rng = new Rng(enemyAiSeed(opts.seed));
     const fights = !this.plan;
     this.ai = fights && opts.captain !== 'destroyer' ? new DuelAi(this.combatant, opts.foe, opts.profile ?? AGGRESSIVE, rng) : null;
     this.destroyerAi = fights && opts.captain === 'destroyer' ? new DestroyerAi(this.combatant, opts.foe, opts.destroyerProfile ?? TORPEDO_ATTACK, rng) : null;

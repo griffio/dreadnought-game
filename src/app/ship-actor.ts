@@ -114,7 +114,8 @@ export class ShipActor implements WakeSource {
     this.prevBody.heave = b.heave;
     this.prevBody.pitch = b.pitch;
     this.prevBody.roll = b.roll;
-    this.afloat.step(dt, simTime, this.dynamics, this.damage, this.kickers());
+    // On a sea pinned for a picture she floats on the pinned waves, so that the picture and the hull agree.
+    this.afloat.step(dt, this.sea.waveTime(simTime), this.dynamics, this.damage, this.kickers());
   }
 
   /** The guns whose recoil she feels: her combatant's batteries. */

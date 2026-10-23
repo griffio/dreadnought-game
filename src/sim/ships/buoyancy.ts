@@ -111,6 +111,17 @@ export class FloatingBody {
     }
   }
 
+  /** Put her at rest on the water as it is (no transient from a hull that began level at height zero): the targets of `update`, still. */
+  settle(plane: WaterPlane, extraRoll = 0, extraPitch = 0, sink = 0): void {
+    const p = this.params;
+    this.heave = plane.height - sink;
+    this.pitch = Math.atan(plane.slopeX) * p.waveFollowing + extraPitch;
+    this.roll = -Math.atan(plane.slopeZ) * p.waveFollowing + extraRoll;
+    this.vHeave = 0;
+    this.vPitch = 0;
+    this.vRoll = 0;
+  }
+
   /** Add an impulse (for example a salvo's recoil): rad/s to roll and pitch. */
   kick(rollRate: number, pitchRate: number): void {
     this.vRoll += rollRate;

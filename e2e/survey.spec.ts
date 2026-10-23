@@ -2,9 +2,10 @@ import { expect, test } from './fixtures';
 
 // Runs the in-page performance survey (the same one the iPad button runs) and prints the table.
 test('perf survey runs and every step reports sensible numbers', async ({ page }) => {
-  test.setTimeout(240_000);
+  // Thirty-three steps of five seconds or more: on a hot, busy GPU the whole run can pass three minutes.
+  test.setTimeout(360_000);
   await page.goto('/?hud=0&shot=0&free=1&sun=20&az=40&clouds=0.5&survey=1');
-  await page.waitForFunction(() => (window.__survey?.length ?? 0) > 0, undefined, { timeout: 200_000 });
+  await page.waitForFunction(() => (window.__survey?.length ?? 0) > 0, undefined, { timeout: 320_000 });
   const rows = await page.evaluate(() => window.__survey!);
   for (const r of rows) {
     console.log(

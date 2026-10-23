@@ -43,9 +43,10 @@ async function meanDifference(page: Page, a: Shot, b: Shot): Promise<number> {
 }
 
 /** Rodney's bow, from 60 m off her starboard side at the height of her deck. */
-const STARBOARD = '/?scenario=duel&player=rodney&target=0&free=1&scale=0.75&fov=45&hud=0&x=60&cam=9&z=-70&yaw=270&pitch=-4&sun=30&az=250&tele=0';
+// The sea is pinned (freeze) so that the two pictures compared, taken on separate page loads, show her lying the same way.
+const STARBOARD = '/?scenario=duel&player=rodney&target=0&free=1&freeze=20&scale=0.75&fov=45&hud=0&x=60&cam=9&z=-70&yaw=270&pitch=-4&sun=30&az=250&tele=0';
 /** And from her port side. */
-const PORT = '/?scenario=duel&player=rodney&target=0&free=1&scale=0.75&fov=45&hud=0&x=-60&cam=9&z=-70&yaw=90&pitch=-4&sun=25&az=250&tele=0';
+const PORT = '/?scenario=duel&player=rodney&target=0&free=1&freeze=20&scale=0.75&fov=45&hud=0&x=-60&cam=9&z=-70&yaw=90&pitch=-4&sun=25&az=250&tele=0';
 
 async function crop(page: Page, url: string, clip: Clip, path?: string): Promise<Shot> {
   await page.goto(url);
@@ -65,15 +66,20 @@ test('markings: a ship wears her hull number on both sides of the bow and the le
   const wornTurrets = await page.screenshot({ clip: turrets });
   const bare = await crop(page, `${STARBOARD}&marks=0`, number);
   const bareTurrets = await page.screenshot({ clip: turrets });
-  // White paint on dark grey: a good deal of the crop changes.
-  expect(await meanDifference(page, worn, bare)).toBeGreaterThan(4);
-  expect(await meanDifference(page, wornTurrets, bareTurrets)).toBeGreaterThan(1.5);
+  // White paint on dark grey: a good deal of the number's crop changes (a mean of about 4). The letters are small grey-on-grey on the
+  // shaded side, about 0.4 over the wide band of the turrets. With the sea pinned, two loads of the same ship are the same picture, so
+  // these numbers are the markings alone (unpinned, the sparkle of the sea between loads used to add to them).
+  expect(await meanDifference(page, worn, bare)).toBeGreaterThan(3);
+  expect(await meanDifference(page, wornTurrets, bareTurrets)).toBeGreaterThan(0.2);
+  await crop(page, STARBOARD, number);
+  const wornTurretsAgain = await page.screenshot({ clip: turrets });
+  expect(await meanDifference(page, wornTurrets, wornTurretsAgain)).toBeLessThan(0.05);
 
   // The port side has it too (the number is read the right way round from each side).
   const portNumber = { x: 520, y: 340, width: 200, height: 110 };
   const portWorn = await crop(page, PORT, portNumber, 'test-results/markings-port.png');
   const portBare = await crop(page, `${PORT}&marks=0`, portNumber);
-  expect(await meanDifference(page, portWorn, portBare)).toBeGreaterThan(4);
+  expect(await meanDifference(page, portWorn, portBare)).toBeGreaterThan(3);
   expect(await page.evaluate(() => window.__gpuErrors ?? [])).toEqual([]);
   expect(problems).toEqual([]);
 });

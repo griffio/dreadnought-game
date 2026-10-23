@@ -1,11 +1,13 @@
-import { CALM, type Environment } from '../gunnery/ballistics';
+import type { Environment } from '../gunnery/ballistics';
 import type { ShellKind } from '../gunnery/shells';
-import { WaveField } from '../ocean/waves';
+import { DEFAULT_WAVE_SPEC, WaveField } from '../ocean/waves';
 import { Rng } from '../rng';
 import { Afloat, kickSeed } from '../ships/afloat';
 import { handlingFor, ShipDynamics } from '../ships/dynamics';
 import { DuelAi, type AiProfile } from './ai';
+import { Arena } from './arena';
 import { Combatant, type ShipReport } from './combatant';
+import { DEFAULT_VISIBILITY_KM, DIRECTOR_DEFAULT, ENEMY_SOLVE_PERIOD, enemyAiSeed, enemySeed, fightEnvironment, FIRST_ENEMY_ID, PLAYER_ID, PLAYER_TORPEDO_SPREAD, playerAiSeed } from './convention';
 import type { ShipSetup } from './setup';
 
 export interface DuelSide {
@@ -21,9 +23,13 @@ export interface DuelSide {
 
 export interface DuelOptions {
   seed: number;
+  /** The player's side (the game's conventions for her: id 1, the fight's own seed, her director's default height, her torpedo fan). */
   a: DuelSide;
+  /** The enemy's side (id 2, the first enemy's seed, the enemy's slower fire-control table). */
   b: DuelSide;
+  /** The air the shells fly in (default: the game's default sea's wind, as the game has it). */
   env?: Environment;
+  /** How far the lookouts see, km (default: the game's default day). */
   visibilityKm?: number;
   /** The waves the ships float on (default: the game's own sea; `WaveField.flat()` for the old flat water). */
   waves?: WaveField;
@@ -35,15 +41,16 @@ const DEG = Math.PI / 180;
 const END_STATES = new Set(['struck', 'sinking', 'sunk', 'exploded']);
 
 /**
- * A fight between two ships with no renderer: the game's own sea under them, the full damage and gunnery models, and an AI on each side. It
- * exists to measure and tune the duel (how long it lasts, who wins, how often a magazine goes up) and is the same
- * simulation the game steps with its own ships.
+ * A fight between two ships with no renderer: the game's own sea under them and its own wind over them, the full damage and gunnery
+ * models, and an AI on each side. It exists to measure and tune the duel (how long it lasts, who wins, how often a magazine goes up)
+ * and is the same simulation the game steps with its own ships, seeded as the game seeds it.
  */
 export class Duel {
   readonly a: Combatant;
   readonly b: Combatant;
   readonly aiA: DuelAi;
   readonly aiB: DuelAi;
+  readonly arena: Arena;
   time = 0;
   readonly log: ShipReport[] = [];
   /** Each ship's hull on the waves, in the order a, b. */
@@ -52,10 +59,12 @@ export class Duel {
   private readonly kickRng: Rng;
 
   constructor(opts: DuelOptions) {
-    const env = opts.env ?? CALM;
+    const env = opts.env ?? fightEnvironment(DEFAULT_WAVE_SPEC);
     const waves = opts.waves ?? WaveField.fromSpec();
     this.kickRng = new Rng(kickSeed(opts.seed));
-    const make = (id: number, side: DuelSide, seed: number): Combatant => {
+    this.arena = new Arena(opts.seed);
+    this.arena.smoke.wind = [env.windX / 1.15, env.windZ / 1.15];
+    const make = (id: number, side: DuelSide, seed: number, player: boolean): Combatant => {
       const hull = side.setup.ship.hull;
       const dynamics = new ShipDynamics(handlingFor(hull.length, side.setup.maxSpeedKn, side.setup.handling));
       dynamics.x = side.x;
@@ -77,10 +86,12 @@ export class Duel {
         rangefinder: side.setup.rangefinder,
         skill: side.setup.skill,
         env: () => env,
-        visibilityKm: () => opts.visibilityKm ?? 40,
+        visibilityKm: () => opts.visibilityKm ?? DEFAULT_VISIBILITY_KM,
         seed,
-        solvePeriod: 0.5,
-        directorHeight: side.setup.director?.[1],
+        solvePeriod: player ? undefined : ENEMY_SOLVE_PERIOD,
+        directorHeight: side.setup.director?.[1] ?? (player ? DIRECTOR_DEFAULT[1] : undefined),
+        torpedoes: this.arena.torpedoes,
+        smoke: this.arena.smoke,
         jams: side.setup.jams,
         wounds: side.setup.wounds,
         rudderJam: side.setup.rudderJam,
@@ -88,16 +99,17 @@ export class Duel {
         plot: side.setup.plot,
       });
       if (side.shell) c.setShell(side.shell);
+      if (player) c.torpedoSpread = PLAYER_TORPEDO_SPREAD;
       c.onHitMark = (mark) => afloat.hitKick(this.kickRng, mark);
+      this.arena.add(c);
       return c;
     };
-    const rng = new Rng(opts.seed);
-    this.a = make(1, opts.a, opts.seed * 7 + 1);
-    this.b = make(2, opts.b, opts.seed * 13 + 5);
+    this.a = make(PLAYER_ID, opts.a, opts.seed, true);
+    this.b = make(FIRST_ENEMY_ID, opts.b, enemySeed(opts.seed, 0), false);
     this.a.setOpponents([this.b]);
     this.b.setOpponents([this.a]);
-    this.aiA = new DuelAi(this.a, () => this.b, opts.a.ai, new Rng(rng.next() * 1e9));
-    this.aiB = new DuelAi(this.b, () => this.a, opts.b.ai, new Rng(rng.next() * 1e9));
+    this.aiA = new DuelAi(this.a, () => this.b, opts.a.ai, new Rng(playerAiSeed(opts.seed)));
+    this.aiB = new DuelAi(this.b, () => this.a, opts.b.ai, new Rng(enemyAiSeed(enemySeed(opts.seed, 0))));
   }
 
   get outcome(): DuelOutcome {
@@ -122,6 +134,7 @@ export class Duel {
     // Both float on this moment's waves, with the shove of what they have just fired: after the guns, as in the game.
     this.afloat[0]!.step(dt, this.time, this.a.dynamics, this.a.damage, this.a.batteries.map((u) => u.gunnery.battery));
     this.afloat[1]!.step(dt, this.time, this.b.dynamics, this.b.damage, this.b.batteries.map((u) => u.gunnery.battery));
+    this.arena.step(dt);
     this.log.push(...this.a.drainReports(), ...this.b.drainReports());
   }
 

@@ -82,7 +82,8 @@ test('ship textures: weathering visibly changes a hull, and a ship drawn with no
   test.setTimeout(150_000);
   const problems = watch(page);
   const hull = async (weather: number) => {
-    await page.goto(`${CLOSE}&weather=${weather}`);
+    // The sea is pinned (freeze) so that pictures taken on separate page loads show her lying the same way.
+    await page.goto(`${CLOSE}&weather=${weather}&freeze=20`);
     await waitForFrames(page, 10);
     await framesLater(page, 6);
     await page.screenshot({ path: `test-results/hull-weather-${weather}.png` });

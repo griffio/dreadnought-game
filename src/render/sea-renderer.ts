@@ -381,6 +381,11 @@ export class SeaRenderer {
     return heightFromModes(this.field.waveModes, x, z, t);
   }
 
+  /** The moment of the waves a ship floats on at simulation time `simTime`: that time, unless the sea is pinned for a picture, when it is the pinned one. */
+  waveTime(simTime: number): number {
+    return this.frozenTime ?? simTime;
+  }
+
   /** The long waves the ships float on, as the sea has them now (re-seeding the sea replaces them). */
   readonly buoyancyWaves: { readonly modes: readonly import('../sim/ocean/spectrum').WaveMode[] } = {
     modes: [],

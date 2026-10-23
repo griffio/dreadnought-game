@@ -46,12 +46,18 @@ export class Afloat {
       const kick = b.drainKick();
       if (kick.roll !== 0 || kick.pitch !== 0) this.body.kick(kick.roll, kick.pitch);
     }
-    if (this.plane === null || this.ticks % REFIT_EVERY === 0) this.plane = this.fit.planeAt(this.waves, d.x, d.z, (d.heading * 180) / Math.PI, t);
+    const first = this.plane === null;
+    if (first || this.ticks % REFIT_EVERY === 0) this.plane = this.fit.planeAt(this.waves, d.x, d.z, (d.heading * 180) / Math.PI, t);
     this.ticks++;
-    const plane = this.plane;
+    const plane = this.plane!;
     // A ship blown in two does not capsize as a whole: she floats on the waves, and the halves go down by themselves.
     const whole = hurt === null || hurt.status !== 'exploded';
-    this.body.update(dt, plane, d.turnHeel + (whole ? hurt?.list ?? 0 : 0), whole ? hurt?.trim ?? 0 : 0, whole ? hurt?.sinkage ?? 0 : 0);
+    const extraRoll = d.turnHeel + (whole ? hurt?.list ?? 0 : 0);
+    const extraPitch = whole ? hurt?.trim ?? 0 : 0;
+    const sink = whole ? hurt?.sinkage ?? 0 : 0;
+    // She begins at rest on the water as it is, not level at height zero and sinking to it over her first seconds.
+    if (first) this.body.settle(plane, extraRoll, extraPitch, sink);
+    this.body.update(dt, plane, extraRoll, extraPitch, sink);
   }
 
   /** The ship as the gunnery simulation sees her: where she is, how she lies, how she moves. */

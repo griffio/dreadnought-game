@@ -32,6 +32,20 @@ import { SpotterPlane } from '../sim/air/spotter';
 import { MineField } from '../sim/mines/mines';
 import { Rng } from '../sim/rng';
 import { kickSeed } from '../sim/ships/afloat';
+import {
+  CHECKPOINT_TICKS,
+  DIRECTOR_DEFAULT,
+  enemySeed,
+  fightEnvironment,
+  fightFingerprint,
+  FIRST_ENEMY_ID,
+  FIRST_FORT_ID,
+  fortSeed,
+  PLAYER_ID,
+  PLAYER_TORPEDO_SPREAD,
+  playerAiSeed,
+  SHELL_WIND_FACTOR,
+} from '../sim/combat/convention';
 import { TELEGRAPH_MIN } from '../sim/ships/dynamics';
 import { Grounding } from '../sim/ships/grounding';
 import type { Terrain } from '../sim/terrain/terrain';
@@ -48,14 +62,6 @@ import { PlayerShip } from './player-ship';
 import type { ShipActor } from './ship-actor';
 
 const DEG = Math.PI / 180;
-const PLAYER_ID = 1;
-const FIRST_ENEMY_ID = 2;
-const FIRST_FORT_ID = 100;
-/** Wind a little above the 10 m reading acts on a shell at height; the smoke feels roughly the surface wind. */
-const SHELL_WIND_FACTOR = 1.15;
-/** Director's eye and sight position when a ship's setup does not say: the foretop, ship space. */
-const DIRECTOR_DEFAULT: readonly [number, number, number] = [17, 25, 0];
-const LATITUDE_DEG = 52;
 /** After the enemy is beaten, how long the fight plays on before the result is shown, seconds. */
 const RESULT_DELAY = 7;
 /** A ship that has struck must be left alone this long (no shell fired) before the fight is called over. */
@@ -68,8 +74,6 @@ const LAUNCH_SIGHT = 9000;
 const SPREAD_STEP = 2;
 /** Metres the sight must move the hand-laid aim before the elevation (a ballistic solution) is worked out again. */
 const HAND_AIM_STEP = 40;
-/** A fingerprint of the fight is kept every this many steps (ten seconds), for the test that two runs of one seed agree. */
-const CHECKPOINT_TICKS = 600;
 
 /** What the bridge calls a secondary battery, by its bore. */
 function secondaryName(boreMm: number): string {
@@ -323,7 +327,7 @@ export class Game {
       ...setupExtras(playerSetup),
     });
     this.playerCombatant.damage.canStrike = false;
-    this.playerCombatant.torpedoSpread = 6;
+    this.playerCombatant.torpedoSpread = PLAYER_TORPEDO_SPREAD;
     this.player.damage = this.playerCombatant.damage;
     this.player.battery = this.playerCombatant.main.battery;
     this.player.combatant = this.playerCombatant;
@@ -338,7 +342,7 @@ export class Game {
       fleet.forEach((entry, i) => {
         const common = {
           id: FIRST_ENEMY_ID + i,
-          seed: seed + 1 + i * 17,
+          seed: enemySeed(seed, i),
           env,
           visibilityKm: visibility,
           foe: () => this.playerCombatant,
@@ -379,7 +383,7 @@ export class Game {
           terrain,
           env,
           visibilityKm: visibility,
-          seed: seed + 301 + i * 13,
+          seed: fortSeed(seed, i),
           id: FIRST_FORT_ID + i,
           pace,
         });
@@ -401,7 +405,7 @@ export class Game {
       for (const fort of this.forts) this.wireFort(fort);
     }
 
-    const rng = new Rng(seed ^ 0x77);
+    const rng = new Rng(playerAiSeed(seed));
     const profile = options.autoPlayer === 'steady' ? STEADY_GUNNER : options.autoPlayer === 'closing' ? CLOSING_GUNNER : null;
     this.autoAi = profile && this.enemies.length > 0 ? new DuelAi(this.playerCombatant, () => this.nearestEnemy(), profile, rng) : null;
     this.bot =
@@ -834,16 +838,9 @@ export class Game {
     };
   }
 
-  /** The real wind and Coriolis, from the sea settings. */
+  /** The real wind and Coriolis, from the sea settings (the same air the headless harnesses fly their shells in). */
   private environment(): Environment {
-    const p = this.sea.params;
-    const h = p.waveHeadingDeg * DEG;
-    return {
-      windX: Math.sin(h) * p.windSpeed * SHELL_WIND_FACTOR,
-      windZ: -Math.cos(h) * p.windSpeed * SHELL_WIND_FACTOR,
-      coriolisLatitudeDeg: LATITUDE_DEG,
-      densityScale: 1,
-    };
+    return fightEnvironment(this.sea.params);
   }
 
   /** The director's position in the world, for the sight camera and the horizon calculation. */
@@ -989,19 +986,9 @@ export class Game {
     this.judge();
     this.callSightings();
     const tick = Math.round(simTime * 60);
-    if (tick % CHECKPOINT_TICKS === 0) this.checkpoints.set(tick, this.fingerprint());
-  }
-
-  /** The state of the fight in a line: where every ship is and how she lies, and what the guns have done. */
-  private fingerprint(): string {
-    const f = (v: number) => v.toFixed(5);
-    const ship = (a: ShipActor) => {
-      const d = a.dynamics;
-      const fr = a.frame;
-      return `${f(d.x)},${f(d.z)},${f(d.heading)},${f(d.speed)},${f(fr.y)},${f(fr.pitch)},${f(fr.roll)}`;
-    };
-    const p = this.playerCombatant;
-    return [ship(this.player), ...this.enemies.map(ship), p.shellsFired, p.hitsScored, p.hitsTaken, this.arena.torpedoes.torpedoes.length].join('|');
+    if (tick % CHECKPOINT_TICKS === 0) {
+      this.checkpoints.set(tick, fightFingerprint(this.playerCombatant, this.enemies.map((e) => e.combatant), this.arena.torpedoes.torpedoes.length));
+    }
   }
 
   /** Running aground: the shoal stops her where she is, and a strike at speed opens her bottom. */
