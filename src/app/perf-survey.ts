@@ -32,6 +32,8 @@ interface Step {
   screen?: boolean;
   /** Part of the shorter survey of the ship alone (`survey=ship`). */
   ship?: boolean;
+  /** Part of the short A/B of the sea's grid culling (`survey=sea`): two baselines round the whole circle, done while the device is cool. */
+  sea?: boolean;
   /** A scene put on for the step and taken off after it: the ship hurt, the ship broken in two, the wreckage of one that has gone down. */
   scene?: Scene;
 }
@@ -41,7 +43,10 @@ export type Scene = 'hurt' | 'broken' | 'wreckage' | 'cutaway';
 export type Scenes = Partial<Record<Scene, { on(): void; off(): void }>>;
 
 const STEPS: Step[] = [
-  { name: 'baseline', scale: 1, flags: {}, ship: true },
+  { name: 'baseline', scale: 1, flags: {}, ship: true, sea: true },
+  // The sea's grid is normally drawn only in the arc the camera sees (about two fifths of it): the whole circle, for the saving. Early,
+  // while the device is still cool: late rows wander by milliseconds as a tablet throttles.
+  { name: 'sea grid: whole circle drawn', scale: 1, flags: { oceanWholeCircle: true }, sea: true },
   // The ship drawn by the pipeline that can discard pixels, as only a ship under the sight's cutaway or broken in two now is: on a
   // tile-based GPU that costs the hidden-surface removal, and the ship is double-sided.
   { name: 'ship drawn with the discarding shader', scale: 1, flags: { shipDiscard: true }, ship: true },
@@ -84,15 +89,13 @@ const STEPS: Step[] = [
   { name: 'no cloud/ambient refresh', scale: 1, flags: { skipClouds: true } },
   { name: 'ocean field frozen (no FFT)', scale: 1, flags: { freezeOcean: true } },
   { name: 'no ocean surface drawn', scale: 1, flags: { skipOceanDraw: true } },
-  // The sea's grid is normally drawn only in the arc the camera sees (about two fifths of it): the whole circle, for the saving.
-  { name: 'sea grid: whole circle drawn', scale: 1, flags: { oceanWholeCircle: true } },
   { name: 'no sky drawn', scale: 1, flags: { skipSkyDraw: true } },
   {
     name: 'floor: sky + composite only',
     scale: 1,
     flags: { skipOceanDraw: true, skipShips: true, freezeOcean: true, skipBloom: true, skipClouds: true },
   },
-  { name: 'baseline (repeat, thermal check)', scale: 1, flags: {} },
+  { name: 'baseline (repeat, thermal check)', scale: 1, flags: {}, sea: true },
 ];
 
 const WARMUP_MS = 2200;
@@ -153,8 +156,8 @@ export class PerfSurvey {
     return { fps: this.frames / seconds, intervalMs: this.intervalSum / n, cpuMs: this.cpuSum / n };
   }
 
-  /** `only` 'ship' is the short survey of the ship alone (about a minute and a half); anything else is every step. */
-  async run(log: (line: string) => void, only: 'all' | 'ship' = 'all'): Promise<SurveyRow[]> {
+  /** `only` 'ship' is the short survey of the ship alone (about a minute and a half), 'sea' the half-minute A/B of the sea's culling; anything else is every step. */
+  async run(log: (line: string) => void, only: 'all' | 'ship' | 'sea' = 'all'): Promise<SurveyRow[]> {
     this.running = true;
     const flags = this.sea.debug;
     const defaults = { ...flags };
@@ -168,7 +171,7 @@ export class PerfSurvey {
       const repeats = probe.intervalMs > SATURATED_MS ? 1 : STRESS_REPEATS;
       log(`calibration: ${probe.fps.toFixed(1)} fps at 1 frame per refresh -> stress x${repeats}`);
 
-      for (const step of STEPS.filter((x) => only === 'all' || x.ship)) {
+      for (const step of STEPS.filter((x) => only === 'all' || (only === 'ship' ? x.ship : x.sea))) {
         Object.assign(flags, defaults, step.flags);
         this.setScale(step.scale);
         this.repeats = repeats;

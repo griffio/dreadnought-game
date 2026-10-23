@@ -596,7 +596,7 @@ async function boot(): Promise<void> {
     };
   }
   const survey = new PerfSurvey(sea, (scale) => (sizer.renderScale = scale), () => sizer.width * sizer.height, startBattle, startScreen, surveyScenes);
-  const startSurvey = async (only: 'all' | 'ship' = 'all') => {
+  const startSurvey = async (only: 'all' | 'ship' | 'sea' = 'all') => {
     if (survey.running || probing) return;
     overlay.setSurveyRunning(true);
     overlay.resetProbeLog();
@@ -637,8 +637,8 @@ async function boot(): Promise<void> {
     }
   };
   overlay.onSurvey(() => void startSurvey());
-  // ?survey=1 is the whole survey; ?survey=ship the shorter one of the ship alone.
-  if (q.has('survey')) void startSurvey(q.get('survey') === 'ship' ? 'ship' : 'all');
+  // ?survey=1 is the whole survey; ?survey=ship the shorter one of the ship alone; ?survey=sea the half-minute A/B of the sea's culling.
+  if (q.has('survey')) void startSurvey(q.get('survey') === 'ship' ? 'ship' : q.get('survey') === 'sea' ? 'sea' : 'all');
 
   // ---- the replay and the shell camera ----------------------------------------------------------
   // The recorder takes a sample of the picture thirty times a second, and every call the game makes to draw a spectacle; the replay
