@@ -70,6 +70,9 @@ export interface CompartmentDamage {
   bulkheadForward: number;
 }
 
+/** Plates of the hull's skin: a shell that comes in through one of them at the waterline leaves a hole, whichever way it faces. */
+const HULL_PLATES: ReadonlySet<string> = new Set(['belt', 'side', 'upper-side', 'end']);
+
 interface Hole {
   comp: number;
   area: number;
@@ -160,6 +163,8 @@ export class ShipDamage {
   funnels: number[];
   /** Fire control: directors, rangefinders, plot (1 working, 0 gone). */
   fireControl = 1;
+  /** The director has been shot away (fire control fell below a tenth): repairs cannot bring it back. */
+  private directorGone = false;
   /** Bridge and conning tower. */
   command = 1;
   status: ShipStatus = 'afloat';
@@ -274,7 +279,8 @@ export class ShipDamage {
   get power(): number {
     let boilers = 0;
     let boilerShare = 0;
-    let engines = 1;
+    let engines = 0;
+    let engineShare = 0;
     for (const c of this.comps) {
       const share = c.spec.power ?? 0;
       if (share <= 0) continue;
@@ -282,12 +288,16 @@ export class ShipDamage {
         boilers += share * this.health(c);
         boilerShare += share;
       } else if (c.spec.role === 'engine') {
-        engines = Math.min(engines, this.health(c));
+        // Each engine room drives its own shafts: losing one of two leaves half the power, not none.
+        engines += share * this.health(c);
+        engineShare += share;
       }
     }
     const boilerFrac = boilerShare > 0 ? boilers / boilerShare : 1;
-    const funnel = this.funnels.length > 0 ? 1 - 0.12 * this.funnels.filter((f) => f < 0.5).length : 1;
-    return clamp(Math.min(boilerFrac, engines) * funnel, 0, 1);
+    const engineFrac = engineShare > 0 ? engines / engineShare : 1;
+    let funnel = 1;
+    for (const f of this.funnels) if (f < 0.5) funnel -= 0.12;
+    return clamp(Math.min(boilerFrac, engineFrac) * funnel, 0, 1);
   }
 
   /** Multiplier on the ship's speed: machinery, then how far down she is in the water and whether she is sinking. */
@@ -329,10 +339,20 @@ export class ShipDamage {
 
   // ---- hits ------------------------------------------------------------------------------------
 
+  /** The compartment at `x` (ship space), or the nearest one for a point beyond the stem or the stern post. */
   private compIndexAtX(x: number): number {
-    const i = this.comps.findIndex((c) => x >= c.spec.x0 && x <= c.spec.x1);
-    if (i >= 0) return i;
-    return x < 0 ? 0 : this.comps.length - 1;
+    let best = 0;
+    let bestD = Number.POSITIVE_INFINITY;
+    for (let i = 0; i < this.comps.length; i++) {
+      const s = this.comps[i]!.spec;
+      const d = x < s.x0 ? s.x0 - x : x > s.x1 ? x - s.x1 : 0;
+      if (d < bestD) {
+        bestD = d;
+        best = i;
+        if (d === 0) break;
+      }
+    }
+    return best;
   }
 
   /** Apply the result of a shell's passage through the ship. */
@@ -466,7 +486,7 @@ export class ShipDamage {
 
     // The hole the shell made going in, if it went in at or below the waterline.
     const entry = r.entry;
-    if (entry[1] < 0.5 && (r.first.axis === 2 || r.first.axis === 1)) {
+    if (entry[1] < 0.5 && (r.first.axis !== 0 || HULL_PLATES.has(r.first.kind))) {
       const idx = this.compIndexAtX(entry[0]);
       const area = TUNING.holeAreaPerCaliber * (shell.diameterMm / 1000) ** 2 * (0.6 + sev0);
       this.holes.push({ comp: idx, area, y: entry[1], side: Math.sign(entry[2]) || 1 });
@@ -503,7 +523,8 @@ export class ShipDamage {
     const severity = Math.min(speed / 6, 1.5);
     const idx = this.compIndexAtX(x);
     const area = 0.15 + 1.1 * severity * severity;
-    this.holes.push({ comp: idx, area, y: -(this.hullDraft - 0.5), side: x >= 0 ? 1 : -1 });
+    // A keel strike is on the centreline: the water that comes in lists her neither way.
+    this.holes.push({ comp: idx, area, y: -(this.hullDraft - 0.5), side: 0 });
     const c = this.comps[idx]!;
     c.integrity = clamp(c.integrity - 0.1 * severity, 0, 1);
     this.report(speed > 3 ? 'critical' : 'alert', speed > 3 ? `Aground! The bottom is torn open in the ${plain(c.spec.name)}.` : `We have touched bottom: a leak in the ${plain(c.spec.name)}.`);
@@ -847,7 +868,9 @@ export class ShipDamage {
         this.report('info', 'Steering gear repaired: the rudder answers.');
       }
     }
-    this.fireControl = clamp(this.fireControl + TUNING.directorRepairPerSecond * dt, 0, this.fireControl < 0.1 ? 0.1 : 1);
+    // A director shot clean away is not rebuilt at sea: a jury rig gives a tenth of its service and no more.
+    if (this.fireControl < 0.1) this.directorGone = true;
+    this.fireControl = clamp(this.fireControl + TUNING.directorRepairPerSecond * dt, 0, this.directorGone ? 0.1 : 1);
   }
 
   /** Heel, trim and sinkage from the water aboard and where it is. */

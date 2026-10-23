@@ -36,7 +36,16 @@ export class RenderScaleController {
 
   /** Feed one frame. Returns the new scale when it changed, otherwise null. */
   sample(frameMs: number, dtSeconds: number): number | null {
-    this.sumMs += frameMs;
+    // A frame of a second or more was the tab in the background or a dialog, not the renderer: it says nothing about the cost of a
+    // frame, so the window starts again. A shorter hitch (a shader compiled, the garbage collected) is capped, so that one of them
+    // cannot pull a whole window's average over the line.
+    if (!(frameMs < 1000)) {
+      this.sumMs = 0;
+      this.frames = 0;
+      this.windowSeconds = 0;
+      return null;
+    }
+    this.sumMs += Math.min(Math.max(frameMs, 0), this.targetMs * 4);
     this.frames++;
     this.windowSeconds += dtSeconds;
     if (this.windowSeconds < this.windowLength) return null;

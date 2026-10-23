@@ -10,6 +10,8 @@ export class FixedStepper {
 
   /** Feed the real frame time; returns how many sim steps to run this frame. */
   advance(frameSeconds: number): number {
+    // A NaN frame would poison the accumulator for good (no step would ever run again).
+    if (!Number.isFinite(frameSeconds)) frameSeconds = 0;
     this.acc += Math.min(Math.max(frameSeconds, 0), this.maxFrameSeconds);
     let steps = 0;
     while (steps < this.maxStepsPerFrame && this.acc + 1e-9 >= this.stepSeconds) {

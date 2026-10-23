@@ -65,6 +65,8 @@ const WAKE_SPACING = 6;
 const LAUNCH_SIGHT = 9000;
 /** Degrees of spread a step of the deflection control makes in torpedo mode. */
 const SPREAD_STEP = 2;
+/** Metres the sight must move the hand-laid aim before the elevation (a ballistic solution) is worked out again. */
+const HAND_AIM_STEP = 40;
 
 /** What the bridge calls a secondary battery, by its bore. */
 function secondaryName(boreMm: number): string {
@@ -262,6 +264,8 @@ export class Game {
   /** The turrets already seen to be wrecked ('<ship id>:<turret>'). */
   private readonly wreckSeen = new Set<string>();
   private lastSightCheck = Number.NEGATIVE_INFINITY;
+  /** The last elevation worked out for the sight's hand-laid aim, and the range it was for. */
+  private handAim: { range: number; elevation: number } | null = null;
 
   constructor(
     private readonly sea: SeaRenderer,
@@ -888,7 +892,11 @@ export class Game {
       let range = max;
       if (ray[1] < -1e-4) range = Math.min((-pos[1] / ray[1]) * Math.hypot(ray[0], ray[2]), max);
       const azimuth = Math.atan2(ray[0], -ray[2]);
-      g.setManualAim(azimuth, g.elevationForRange(Math.max(range, 400)));
+      // The elevation for a range is a ballistic solution, more than a millisecond's work: it is done again only when the sight has
+      // moved the aim by more than a few lengths of a ship, which is finer than guns can be laid by hand anyway.
+      const want = Math.max(range, 400);
+      if (!this.handAim || Math.abs(want - this.handAim.range) > HAND_AIM_STEP) this.handAim = { range: want, elevation: g.elevationForRange(want) };
+      g.setManualAim(azimuth, this.handAim.elevation);
     }
   }
 

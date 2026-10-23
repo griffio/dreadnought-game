@@ -67,15 +67,18 @@ export function assessTorpedo(t: RunningTorpedo, own: OwnShip): ThreatView {
   // Time of closest approach on the relative track.
   const tc = -(rx * vx + rz * vz) / v2;
   const remaining = Math.max(t.maxRun - t.run, 0) / Math.max(t.speed, 0.1);
-  if (tc <= 0 || tc > remaining) return { bearing, relative, range, eta: null, miss: null, level: 'clear' };
-  const cx = rx + vx * tc;
-  const cz = rz + vz * tc;
+  if (tc <= 0) return { bearing, relative, range, eta: null, miss: null, level: 'clear' };
+  // One that runs out of legs before its closest approach is judged where it stops: inside the hull is still a hit.
+  const tEval = Math.min(tc, remaining);
+  const cx = rx + vx * tEval;
+  const cz = rz + vz * tEval;
   const miss = Math.hypot(cx, cz);
   // The hull's width across the relative track: her length when the track runs abeam, her beam when it runs along her.
   const relHeading = Math.atan2(vx, -vz);
   const phi = wrap(relHeading - own.heading);
   const across = Math.abs(Math.sin(phi)) * own.halfLength + Math.abs(Math.cos(phi)) * own.halfBeam;
   // Where the relative track passes, perpendicular to itself: |cx, cz| is already the closest distance to her centre.
+  if (tc > remaining && miss > across) return { bearing, relative, range, eta: null, miss: null, level: 'clear' };
   const level: ThreatLevel = miss <= across ? 'hit' : miss <= across + own.halfLength ? 'close' : 'clear';
-  return { bearing, relative, range, eta: tc, miss, level };
+  return { bearing, relative, range, eta: tEval, miss, level };
 }

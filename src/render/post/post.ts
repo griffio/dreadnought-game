@@ -21,6 +21,9 @@ export class PostProcess {
   private composite!: PassBinding;
   private readonly uniformData = new Float32Array(8);
   private size: [number, number] = [0, 0];
+  private hdrSceneView!: GPUTextureView;
+  /** What the pass uniforms were last written with; they are written again only when it changes (or the targets are remade). */
+  private written: { exposure: number; bloom: number; composite: number } | null = null;
 
   private constructor(
     private readonly device: GPUDevice,
@@ -80,7 +83,7 @@ export class PostProcess {
   }
 
   get hdrView(): GPUTextureView {
-    return this.hdrTexture.createView();
+    return this.hdrSceneView;
   }
 
   resize(width: number, height: number): void {
@@ -111,6 +114,8 @@ export class PostProcess {
     this.bloomViews = this.bloom.map((t) => t.createView());
 
     const hdrView = this.hdrTexture.createView();
+    this.hdrSceneView = hdrView;
+    this.written = null;
     const bind = (src: GPUTextureView, other: GPUTextureView): PassBinding => {
       const uniform = this.device.createBuffer({
         size: 32,
@@ -164,16 +169,21 @@ export class PostProcess {
     const [w, h] = this.size;
     const levelSize = (i: number) => this.dims[i]!;
 
-    this.writeUniform(this.down[0]!, exposure, bloomStrength, w, h);
-    for (let i = 1; i < BLOOM_LEVELS; i++) {
-      const [sw, sh] = levelSize(i - 1);
-      this.writeUniform(this.down[i]!, exposure, bloomStrength, sw, sh);
+    const compositeBloom = bloomEnabled ? bloomStrength : 0;
+    const last = this.written;
+    if (!last || last.exposure !== exposure || last.bloom !== bloomStrength || last.composite !== compositeBloom) {
+      this.writeUniform(this.down[0]!, exposure, bloomStrength, w, h);
+      for (let i = 1; i < BLOOM_LEVELS; i++) {
+        const [sw, sh] = levelSize(i - 1);
+        this.writeUniform(this.down[i]!, exposure, bloomStrength, sw, sh);
+      }
+      for (let i = 0; i < BLOOM_LEVELS - 1; i++) {
+        const [sw, sh] = levelSize(i + 1);
+        this.writeUniform(this.up[i]!, exposure, bloomStrength, sw, sh);
+      }
+      this.writeUniform(this.composite, exposure, compositeBloom, w, h);
+      this.written = { exposure, bloom: bloomStrength, composite: compositeBloom };
     }
-    for (let i = 0; i < BLOOM_LEVELS - 1; i++) {
-      const [sw, sh] = levelSize(i + 1);
-      this.writeUniform(this.up[i]!, exposure, bloomStrength, sw, sh);
-    }
-    this.writeUniform(this.composite, exposure, bloomStrength, w, h);
 
     const fullscreen = (
       view: GPUTextureView,
@@ -201,7 +211,6 @@ export class PostProcess {
         fullscreen(this.bloomViews[i]!, this.upPipeline, this.up[i]!, 'load');
       }
     }
-    this.writeUniform(this.composite, exposure, bloomEnabled ? bloomStrength : 0, w, h);
     fullscreen(target, this.compositePipeline, this.composite, 'clear', timer?.render('post', bloomEnabled ? 'end' : 'both'));
   }
 }

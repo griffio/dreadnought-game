@@ -39,6 +39,9 @@ export interface FoamSettings {
  * derivative texture arrays (with mips) the surface shader samples. No rendering happens here, so it also
  * runs in tests.
  */
+/** The Sim uniform block as it is filled each frame (16 floats; see `encode`). */
+const SIM_SCRATCH = new Float32Array(16);
+
 export class OceanField {
   readonly size: number;
   readonly cascades: number;
@@ -239,23 +242,22 @@ export class OceanField {
     dt: number,
   ): void {
     const n = this.size;
-    const lengths = [0, 0, 0, 0];
-    const gains = [0, 0, 0, 0];
-    for (let c = 0; c < this.cascades; c++) {
-      lengths[c] = this.lengths[c]!;
-      gains[c] = foam.gains[c] ?? 0;
-    }
     const foamDecay = Math.exp(-Math.max(dt, 0) / Math.max(foam.persistence, 0.05));
-    this.device.queue.writeBuffer(
-      this.simBuffer,
-      0,
-      new Float32Array([
-        loopedTime, this.w0, choppiness, foamDecay,
-        lengths[0]!, lengths[1]!, lengths[2]!, lengths[3]!,
-        gains[0]!, gains[1]!, gains[2]!, gains[3]!,
-        n, this.cascades, foam.bias, 0,
-      ]),
-    );
+    // The Sim block, filled in place (the same 16 floats every frame: nothing to allocate).
+    const sd = SIM_SCRATCH;
+    sd.fill(0);
+    sd[0] = loopedTime;
+    sd[1] = this.w0;
+    sd[2] = choppiness;
+    sd[3] = foamDecay;
+    for (let c = 0; c < this.cascades; c++) {
+      sd[4 + c] = this.lengths[c]!;
+      sd[8 + c] = foam.gains[c] ?? 0;
+    }
+    sd[12] = n;
+    sd[13] = this.cascades;
+    sd[14] = foam.bias;
+    this.device.queue.writeBuffer(this.simBuffer, 0, sd);
     this.current = 1 - this.current;
     const cur = this.current;
 

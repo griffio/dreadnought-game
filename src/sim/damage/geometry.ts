@@ -134,6 +134,34 @@ export function buildHitGeometry(ship: ShipSpec, dmg: DamageSpec): HitGeometry {
     plates.push({ id: `${c.id}.keel`, kind: 'bottom', axis: 1, coord: bottom, lo: [c.x0, -hb], hi: [c.x1, hb], mm: a.plating });
     zones.push({ id: `zone.${c.id}`, kind: 'compartment', min: [c.x0, bottom, -hb], max: [c.x1, top, hb], ref: c.id, priority: 1 });
   }
+  // Where one compartment is beamier than the next the hull steps, and the face of the step is hull too: without it a raking shell
+  // would pass in through the open face and traverse the citadel without meeting a plate. The face takes the belt, upper side and
+  // plating of the beamier compartment, band for band.
+  const ordered = [...dmg.compartments].sort((p, q) => p.x0 - q.x0);
+  for (let i = 0; i + 1 < ordered.length; i++) {
+    const aft = ordered[i]!;
+    const fore = ordered[i + 1]!;
+    const hbAft = halfBreadth((aft.x0 + aft.x1) / 2);
+    const hbFore = halfBreadth((fore.x0 + fore.x1) / 2);
+    if (Math.abs(hbAft - hbFore) < 0.05) continue;
+    const wide = hbAft > hbFore ? aft : fore;
+    const inner = Math.min(hbAft, hbFore);
+    const outer = Math.max(hbAft, hbFore);
+    const x = (aft.x1 + fore.x0) / 2;
+    const xm = (wide.x0 + wide.x1) / 2;
+    const top = deckY(xm);
+    const bottom = -keel(xm);
+    const beltMm = within(xm, a.belt.x0, a.belt.x1) ? a.belt.mm : Math.max(a.belt.endsMm, a.plating);
+    const upperMm = within(xm, a.upperSide.x0, a.upperSide.x1) ? a.upperSide.mm : a.plating;
+    for (const s of [-1, 1] as const) {
+      const side = s < 0 ? 'port' : 'stbd';
+      const zLo = s < 0 ? -outer : inner;
+      const zHi = s < 0 ? -inner : outer;
+      plates.push({ id: `${wide.id}.step.${side}.low`, kind: 'side', axis: 0, coord: x, lo: [bottom, zLo], hi: [BELT_BOTTOM, zHi], mm: a.plating });
+      plates.push({ id: `${wide.id}.step.${side}.belt`, kind: 'belt', axis: 0, coord: x, lo: [BELT_BOTTOM, zLo], hi: [BELT_TOP, zHi], mm: beltMm });
+      plates.push({ id: `${wide.id}.step.${side}.upper`, kind: 'upper-side', axis: 0, coord: x, lo: [BELT_TOP, zLo], hi: [top, zHi], mm: upperMm });
+    }
+  }
   // The stem and the stern post.
   const first = dmg.compartments.reduce((m, c) => (c.x0 < m.x0 ? c : m));
   const last = dmg.compartments.reduce((m, c) => (c.x1 > m.x1 ? c : m));

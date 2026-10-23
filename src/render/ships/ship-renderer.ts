@@ -394,7 +394,9 @@ export class ShipRenderer {
 
   /** Upload every ship's pose and rig. Call once per frame before encoding. */
   update(cameraPos: Vec3, simTime = 0, detail = 0): void {
-    for (const s of this.ships) s.write(this.device, cameraPos, simTime, detail);
+    // A ship that is not drawn (at anchor behind the front door, sunk, a part not yet broken off) needs no rig or upload; a part that
+    // is drawn always has its parent drawn too, so the rig it shares is fresh.
+    for (const s of this.ships) if (s.visible) s.write(this.device, cameraPos, simTime, detail);
   }
 
   /**

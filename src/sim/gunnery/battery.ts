@@ -123,6 +123,7 @@ export class GunBattery {
   private bias: SalvoBias = { velocity: 0, elevation: 0, azimuth: 0 };
   private alignWait = 0;
   private started: SalvoStart[] = [];
+  private dropped: { salvo: number; count: number }[] = [];
   private kickAccum = { roll: 0, pitch: 0 };
 
   constructor(
@@ -152,6 +153,8 @@ export class GunBattery {
   setAvailability(index: number, enabled: boolean, reloadFactor: number): void {
     const t = this.turrets[index]!;
     if (t.enabled && !enabled) {
+      // Barrels still to fire in a salvo will not: the owner is told, so that the salvo is not waited on for ever.
+      if (t.queue.length > 0) this.dropped.push({ salvo: t.queue[0]!.salvo, count: t.queue.length });
       t.queue = [];
       t.bears = false;
     }
@@ -216,6 +219,13 @@ export class GunBattery {
   drainStartedSalvos(): SalvoStart[] {
     const out = this.started;
     this.started = [];
+    return out;
+  }
+
+  /** Shots of begun salvos that were never fired because the turret was put out of action first (since the last call). */
+  drainDroppedShots(): { salvo: number; count: number }[] {
+    const out = this.dropped;
+    this.dropped = [];
     return out;
   }
 

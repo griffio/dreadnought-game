@@ -59,6 +59,11 @@ export class BattleHud {
   private readonly lineEls: HTMLDivElement[] = [];
   private dismissed = false;
   private readonly onPanelToggle: () => void;
+  /** The damage report's turret chips and fact rows, kept and written in place rather than rebuilt every frame. */
+  private readonly turretEls = new Map<string, { box: HTMLElement; text: HTMLElement }>();
+  private readonly factEls = new Map<string, HTMLElement>();
+  /** What the result screen was last built from. */
+  private lastResult: { outcome: unknown; key: string } | null = null;
 
   constructor(root: HTMLElement, onAgain: () => void, onPanelToggle: () => void, onPort?: () => void, onReplay?: () => void) {
     this.onPanelToggle = onPanelToggle;
@@ -219,13 +224,23 @@ export class BattleHud {
       if (this.hull.children[i] !== cell.box) this.hull.insertBefore(cell.box, this.hull.children[i] ?? null);
     });
 
-    this.turrets.replaceChildren();
+    // The chips and the rows are kept and written in place (equal text is a no-op for the browser): a panel rebuilt every frame is
+    // the costliest thing a HUD can do on a tablet.
+    const seen = new Set<string>();
     for (const t of d.turrets) {
-      const chip = el('div', 'dturret', this.turrets);
-      chip.dataset.state = t.state === 'ok' && t.crew < 0.5 ? 'weak' : t.state;
-      el('b', '', chip, t.id);
-      el('span', '', chip, `${t.state === 'ok' && t.crew < 0.5 ? 'SHORT-HANDED' : (STATE_TEXT[t.state] ?? t.state)}${t.fire > 0.05 ? ' · FIRE' : ''}`);
+      seen.add(t.id);
+      let chip = this.turretEls.get(t.id);
+      if (!chip) {
+        const box = el('div', 'dturret', this.turrets);
+        el('b', '', box, t.id);
+        chip = { box, text: el('span', '', box) };
+        this.turretEls.set(t.id, chip);
+      }
+      chip.box.hidden = false;
+      chip.box.dataset.state = t.state === 'ok' && t.crew < 0.5 ? 'weak' : t.state;
+      chip.text.textContent = `${t.state === 'ok' && t.crew < 0.5 ? 'SHORT-HANDED' : (STATE_TEXT[t.state] ?? t.state)}${t.fire > 0.05 ? ' · FIRE' : ''}`;
     }
+    for (const [id, chip] of this.turretEls) if (!seen.has(id)) chip.box.hidden = true;
 
     const rows: [string, string][] = [
       ['Speed', `${(own.speed / KNOT).toFixed(1)} kn of ${own.maxSpeedKn} (engines ${Math.round(s.power * 100)}%)`],
@@ -236,11 +251,15 @@ export class BattleHud {
       ['List / trim', `${s.listDeg >= 0 ? 'stbd ' : 'port '}${Math.abs(s.listDeg).toFixed(1)}° / ${s.trimDeg >= 0 ? 'stern ' : 'bow '}${Math.abs(s.trimDeg).toFixed(1)}°`],
       ['Fires', String(s.fires)],
     ];
-    this.facts.replaceChildren();
     for (const [k, v] of rows) {
-      const row = el('div', 'drow', this.facts);
-      el('label', '', row, k);
-      el('output', '', row, v);
+      let out = this.factEls.get(k);
+      if (!out) {
+        const row = el('div', 'drow', this.facts);
+        el('label', '', row, k);
+        out = el('output', '', row);
+        this.factEls.set(k, out);
+      }
+      out.textContent = v;
     }
   }
 
@@ -248,6 +267,11 @@ export class BattleHud {
     const show = outcome !== null && !this.dismissed;
     this.result.hidden = !show;
     if (!show || !outcome) return;
+    // The outcome is fixed once the fight is over, and the prestige once it is recorded: the screen is built when they change, not
+    // sixty times a second while it is read.
+    const key = prestige ? `${prestige.earned}|${prestige.total}|${prestige.base}|${prestige.lines.length}` : '';
+    if (this.lastResult && this.lastResult.outcome === outcome && this.lastResult.key === key) return;
+    this.lastResult = { outcome, key };
     this.result.dataset.result = outcome.result;
     this.resultTitle.textContent = outcome.result === 'victory' ? 'VICTORY' : 'DEFEAT';
     this.resultHow.textContent = outcome.how;

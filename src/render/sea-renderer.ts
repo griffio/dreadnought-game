@@ -140,6 +140,9 @@ export class SeaRenderer {
   private readonly sceneBuffer: GPUBuffer;
   private msaaColor: GPUTexture | null = null;
   private depth: GPUTexture | null = null;
+  /** Views of the two, made once per resize rather than once per frame. */
+  private msaaView: GPUTextureView | null = null;
+  private depthView: GPUTextureView | null = null;
   private width = 1;
   private height = 1;
   private lastSun = { elev: Number.NaN, az: Number.NaN };
@@ -322,6 +325,8 @@ export class SeaRenderer {
       sampleCount,
       usage: GPUTextureUsage.RENDER_ATTACHMENT,
     });
+    this.msaaView = this.msaaColor?.createView() ?? null;
+    this.depthView = this.depth.createView();
     this.post.resize(width, height);
   }
 
@@ -411,8 +416,9 @@ export class SeaRenderer {
     s.vec4(SLOT.cloudSun, ...this.cloudSun, 0);
     s.vec4(SLOT.atmo, Math.sin(e), 1, 0, 0);
 
-    // Sun shadow framed on the first ship (the player's). Off when the sun is down or there is no ship.
-    const focus = this.ships.ships[0];
+    // Sun shadow framed on the first ship that is drawn (the player's, or the one at anchor at the front door). Off when the sun is down
+    // or there is no ship.
+    const focus = this.ships.ships.find((s) => s.visible);
     const drawShips = !this.debug.skipShips;
     const shadowOn = drawShips && !this.debug.skipShadow && focus !== undefined && sunDir[1] > 0.02;
     if (shadowOn) {
@@ -494,7 +500,7 @@ export class SeaRenderer {
       timestampWrites: this.timer?.render('scene'),
       colorAttachments: [
         {
-          view: msaa ? msaa.createView() : hdrView,
+          view: msaa ? this.msaaView! : hdrView,
           resolveTarget: msaa ? hdrView : undefined,
           clearValue: { r: 0, g: 0, b: 0, a: 1 },
           loadOp: 'clear',
@@ -502,7 +508,7 @@ export class SeaRenderer {
         },
       ],
       depthStencilAttachment: {
-        view: this.depth!.createView(),
+        view: this.depthView!,
         depthClearValue: 0,
         depthLoadOp: 'clear',
         depthStoreOp: 'discard',
@@ -510,9 +516,11 @@ export class SeaRenderer {
     });
     if (!this.debug.skipSkyDraw) this.atmosphere.drawSky(pass);
     if (!this.debug.skipOceanDraw) this.surface.draw(pass);
-    this.wake.draw(pass);
     if (!this.debug.skipTerrain) this.land.draw(pass);
     if (drawShips) this.ships.draw(pass, this.debug.shipDiscard, this.debug.shipParts);
+    // The foam is blended over the sea after everything solid: it is tested against the hulls' and the land's depth, so none of it is
+    // drawn where a ship or a shore stands in front of it, and on a tile-based GPU the sea under a hull is never shaded for nothing.
+    this.wake.draw(pass);
     if (drawFx) this.particles.draw(pass);
     pass.end();
 

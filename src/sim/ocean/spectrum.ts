@@ -61,16 +61,23 @@ export function cascadeBands(n: number, lengths: readonly number[]): CascadeBand
   return bands;
 }
 
+/** The wind the spectrum is built for: a dead calm would divide by zero and fill the sea with NaN, so it is at least a breath. */
+function windOf(p: SpectrumParams): number {
+  return Math.max(p.windSpeed, 0.5);
+}
+
 export function peakOmega(p: SpectrumParams): number {
-  const fetchLimited = 22 * Math.cbrt((GRAVITY * GRAVITY) / (p.windSpeed * p.fetchM));
-  const fullyDeveloped = (0.855 * GRAVITY) / p.windSpeed;
+  const u = windOf(p);
+  const fetchLimited = 22 * Math.cbrt((GRAVITY * GRAVITY) / (u * p.fetchM));
+  const fullyDeveloped = (0.855 * GRAVITY) / u;
   return Math.max(fetchLimited, fullyDeveloped);
 }
 
 /** JONSWAP S(w), m^2 s / rad. */
 export function jonswapOmega(omega: number, p: SpectrumParams): number {
   const wp = peakOmega(p);
-  const alpha = 0.076 * Math.pow((p.windSpeed * p.windSpeed) / (p.fetchM * GRAVITY), 0.22);
+  const u = windOf(p);
+  const alpha = 0.076 * Math.pow((u * u) / (p.fetchM * GRAVITY), 0.22);
   const sigma = omega <= wp ? 0.07 : 0.09;
   const r = Math.exp(-((omega - wp) ** 2) / (2 * sigma * sigma * wp * wp));
   return (

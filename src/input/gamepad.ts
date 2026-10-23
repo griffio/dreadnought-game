@@ -153,13 +153,32 @@ export class GamepadSource implements InputSource {
     }
     // Pressing in the left stick (with the sight down) sends the spotter aircraft up or brings it home.
     if (!sighting && l3) out.spotter = active = true;
-    if (pressedNow(BTN.LB)) out.cycleTarget = -1;
-    if (pressedNow(BTN.RB)) out.cycleTarget = 1;
-    if (pressedNow(BTN.UP)) out.rangeCorrect += 1;
-    if (pressedNow(BTN.DOWN)) out.rangeCorrect -= 1;
-    if (pressedNow(BTN.LEFT)) out.deflectCorrect -= 1;
-    if (pressedNow(BTN.RIGHT)) out.deflectCorrect += 1;
-    if (out.cycleTarget !== 0 || out.rangeCorrect !== 0 || out.deflectCorrect !== 0) active = true;
+    // Only the pad's own presses make it the active device: the intent is shared, and the keyboard (polled first) may already have
+    // written these fields, which must not hand the HUD to an idle pad.
+    if (pressedNow(BTN.LB)) {
+      out.cycleTarget = -1;
+      active = true;
+    }
+    if (pressedNow(BTN.RB)) {
+      out.cycleTarget = 1;
+      active = true;
+    }
+    if (pressedNow(BTN.UP)) {
+      out.rangeCorrect += 1;
+      active = true;
+    }
+    if (pressedNow(BTN.DOWN)) {
+      out.rangeCorrect -= 1;
+      active = true;
+    }
+    if (pressedNow(BTN.LEFT)) {
+      out.deflectCorrect -= 1;
+      active = true;
+    }
+    if (pressedNow(BTN.RIGHT)) {
+      out.deflectCorrect += 1;
+      active = true;
+    }
     return active;
   }
 }

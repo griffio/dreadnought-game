@@ -161,6 +161,9 @@ const AIR_RANGE_SIGMA = 14;
 const AIR_RANGE_FRACTION = 0.012;
 const AIR_BEARING_SIGMA = 0.0016;
 const SOLVE_PERIOD = 0.2;
+/** A salvo begun this long ago with nothing of it in the air has lost its last shells: it is called by what did fall. */
+const STALE_SALVO_SECONDS = 2;
+const NO_BOXES: HitBox[] = [];
 const BEARING_SIGMA = 0.0006;
 const RANGE_STEP = 100;
 const DEFLECTION_STEP = 10;
@@ -212,6 +215,8 @@ export class Gunnery {
   private rangefinderBias = 0;
   private rfTimer = 0;
   private solveTimer = 0;
+  /** The longest range of the guns, worked out once: the gun and the muzzle height do not change. */
+  private maxRangeCache: number | null = null;
   private lastSighting = Number.NEGATIVE_INFINITY;
   private turnedUntil = Number.NEGATIVE_INFINITY;
   private lateralMisses = 0;
@@ -287,7 +292,7 @@ export class Gunnery {
     this.airBias = contact ? (((Math.imul(contact.id + 1, 2654435761) ^ Math.imul(this.cfg.shooterId + 7, 40503)) >>> 0) / 4294967296 - 0.5) * 2 * AIR_BIAS : 0;
     this.terrainView.id = -1;
     this.rfTimer = this.rangingPeriod; // take the first reading straight away
-    this.solveTimer = SOLVE_PERIOD;
+    this.solveTimer = this.solvePeriod;
   }
 
   /** Select the next (or previous) contact by range from the ship. */
@@ -311,7 +316,7 @@ export class Gunnery {
   correct(rangeSteps: number, deflectionSteps: number): void {
     this.manual.range += rangeSteps * RANGE_STEP;
     this.manual.deflection += deflectionSteps * DEFLECTION_STEP;
-    this.solveTimer = SOLVE_PERIOD;
+    this.solveTimer = this.solvePeriod;
   }
 
   /** The round loaded for the next salvo (a gun with no choice always has its own). */
@@ -369,13 +374,21 @@ export class Gunnery {
 
     const shots = this.battery.update(dt, ship, trigger || this.armedAt !== null);
     for (const started of this.battery.drainStartedSalvos()) this.beginSalvo(started, now);
+    // Shots a turret was to fire in a salvo and never did (put out of action in the ripple): the salvo is called by the shells that flew.
+    for (const d of this.battery.drainDroppedShots()) {
+      const salvo = this.salvos.get(d.salvo);
+      if (!salvo) continue;
+      salvo.expected -= d.count;
+      if (salvo.resolved >= salvo.expected) this.finish(salvo);
+    }
     if (shots.length > 0) this.armedAt = null;
     for (const shot of shots) {
       this.world.spawn(shot, this.salvoShell.get(shot.salvo) ?? this.activeShell, this.cfg.shooterId);
       this.onShot?.(shot);
     }
 
-    const boxes = this.contacts.filter((c) => c.alive !== false).map<HitBox>((c) => ({
+    // Nothing in the air needs no hit boxes (several gunneries on a shore would otherwise build them every tick for nothing).
+    const boxes = this.world.shells.length === 0 ? NO_BOXES : this.contacts.filter((c) => c.alive !== false).map<HitBox>((c) => ({
       id: c.id,
       x: c.x,
       z: c.z,
@@ -391,6 +404,11 @@ export class Gunnery {
     for (const e of events) {
       this.resolve(e, ship);
       this.onShellEvent?.(e);
+    }
+    // Nothing left in the air: a salvo still open after its ripple has lost its last shells (a flight cut off, a turret put out of
+    // action as it fired) and is called by what did fall, so that the spotter is not left waiting for it.
+    if (this.salvos.size > 0 && this.world.shells.length === 0) {
+      for (const salvo of [...this.salvos.values()]) if (now - salvo.started > STALE_SALVO_SECONDS) this.finish(salvo);
     }
     return events;
   }
@@ -410,6 +428,8 @@ export class Gunnery {
   }
 
   private resolve(e: ShellEvent, ship: ShipFrame): void {
+    // Through and out (or glanced off and flying on): the shell is still in the air, and its fall is counted where it ends.
+    if (e.kind === 'hit' && e.outcome !== null && !e.outcome.consumed) return;
     const salvo = this.salvos.get(e.shell.salvo);
     if (!salvo) return;
     salvo.resolved++;
@@ -431,7 +451,7 @@ export class Gunnery {
     this.lastReport = report;
     this.lastReportAt = this.now;
     if (this.autoSpot) this.spotter.apply(report, salvo.firedWith, this.manual);
-    this.solveTimer = SOLVE_PERIOD;
+    this.solveTimer = this.solvePeriod;
     this.onReport?.(report);
   }
 
@@ -498,17 +518,17 @@ export class Gunnery {
       this.rfTimer = this.rangingPeriod;
       this.terrainView.id = -1;
     }
-    const sight = this.isVisible(ship, c);
-
     this.rfTimer += dt;
     if (this.rfTimer >= this.rangingPeriod) {
       this.rfTimer = 0;
+      // Whether she can be seen is settled when a reading is taken, not every tick: it looks through every cloud of smoke.
+      const sight = this.isVisible(ship, c);
       if (sight.visible && this.fireControlHealth > 0.12) this.sightTarget(now, ship, c, sight.range, sight.hullDown, sight.clarity);
       else if (!sight.visible && this.fireControlHealth > 0.12) this.sightFromAir(now, c);
     }
 
     this.solveTimer += dt;
-    if (this.solveTimer >= (this.cfg.solvePeriod ?? SOLVE_PERIOD)) {
+    if (this.solveTimer >= this.solvePeriod) {
       this.solveTimer = 0;
       this.solve(now, ship);
     }
@@ -674,11 +694,18 @@ export class Gunnery {
 
   /** The longest range the guns can reach, metres, in still air. */
   cfgMaxRange(): number {
+    if (this.maxRangeCache !== null) return this.maxRangeCache;
     const gun = this.cfg.gun;
     // A howitzer's greatest range is at the flattest of its plunging elevations, with the full charge.
     const el = gun.highAngle ? Math.min(PLUNGE_MIN, gun.maxElevationDeg * DEG) : gun.maxElevationDeg * DEG;
     const r = rangeAtElevation(gun.shell, el, this.muzzleHeight);
-    return r?.range ?? 0;
+    this.maxRangeCache = r?.range ?? 0;
+    return this.maxRangeCache;
+  }
+
+  /** How often the firing solution is worked out, seconds (a harness may ask for a slower table). */
+  private get solvePeriod(): number {
+    return this.cfg.solvePeriod ?? SOLVE_PERIOD;
   }
 
   /** Is the designated target within what the guns can reach, by the latest solution? */

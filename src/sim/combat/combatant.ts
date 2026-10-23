@@ -582,8 +582,12 @@ export class Combatant implements Contact {
 }
 
 /** The parts of a ship setup that the combatant's config carries as separate fields. */
-export function setupExtras(setup: ShipSetup): Pick<CombatantConfig, 'tubes' | 'torpedo' | 'small' | 'dazzle' | 'autoTarget' | 'jams' | 'wounds' | 'rudderJam' | 'neverStrikes' | 'plot'> {
+export function setupExtras(
+  setup: ShipSetup,
+): Pick<CombatantConfig, 'tubes' | 'torpedo' | 'small' | 'dazzle' | 'autoTarget' | 'jams' | 'wounds' | 'rudderJam' | 'neverStrikes' | 'plot' | 'directorHeight'> {
   return {
+    // Her director's height sets her horizon; left out when the setup does not say, so that a caller's own figure stands.
+    ...(setup.director ? { directorHeight: setup.director[1] } : {}),
     tubes: setup.tubes,
     torpedo: setup.torpedo,
     small: setup.small,

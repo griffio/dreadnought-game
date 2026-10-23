@@ -23,6 +23,19 @@ export function surveyFileName(survey, now = new Date()) {
 
 const MAX_BYTES = 1_000_000;
 
+/** Whether a request comes from the dev server's own page, by the browser's own account of it (the Fetch metadata or the Origin). */
+export function sameOrigin(req) {
+  const site = req.headers['sec-fetch-site'];
+  if (site !== undefined) return site === 'same-origin' || site === 'none';
+  const origin = req.headers.origin;
+  if (origin === undefined) return true; // not a browser (curl, a script): nothing to compare
+  try {
+    return new URL(origin).host === req.headers.host;
+  } catch {
+    return false;
+  }
+}
+
 export default function perfResults(dir = 'perf-results') {
   return {
     name: 'perf-results',
@@ -35,8 +48,12 @@ export default function perfResults(dir = 'perf-results') {
           res.end(JSON.stringify(body));
         };
         if (req.method !== 'POST') return reply(405, { error: 'POST a survey report' });
+        // Only the game's own page may post: a page from another site open in the same browser, or another host on the LAN that says
+        // where it is from, is turned away (this is a dev server, but one that writes files).
+        if (!sameOrigin(req)) return reply(403, { error: 'not from this page' });
         const chunks = [];
         let size = 0;
+        req.on('error', () => reply(400, { error: 'upload failed' }));
         req.on('data', (chunk) => {
           size += chunk.length;
           if (size <= MAX_BYTES) chunks.push(chunk);

@@ -21,6 +21,18 @@ export interface GroundingResult {
 export const KEEL_CLEARANCE = 0.4;
 /** Water beyond the draft that frees a ship that has been aground, metres. */
 const FREE_MARGIN = 1.5;
+/** Where the keel is sounded, as fractions of the hull's half-length (x) and half-beam (z): stem, shoulders, amidships, quarters, stern. */
+const KEEL_POINTS: readonly (readonly [number, number])[] = [
+  [1, 0],
+  [0.5, 1],
+  [0.5, -1],
+  [0, 1],
+  [0, -1],
+  [0, 0],
+  [-0.5, 1],
+  [-0.5, -1],
+  [-1, 0],
+];
 
 /**
  * Running aground. The hull is tested at its ends, its middle and its turn of bilge: if any of them has less water under it than
@@ -45,17 +57,9 @@ export class Grounding {
     const B = this.hull.beam * 0.4;
     let depth = Number.POSITIVE_INFINITY;
     let at = 0;
-    for (const [lx, lz] of [
-      [L, 0],
-      [L * 0.5, B],
-      [L * 0.5, -B],
-      [0, B],
-      [0, -B],
-      [0, 0],
-      [-L * 0.5, B],
-      [-L * 0.5, -B],
-      [-L, 0],
-    ] as const) {
+    for (const [kx, kz] of KEEL_POINTS) {
+      const lx = kx * L;
+      const lz = kz * B;
       const wx = x + lx * sh + lz * ch;
       const wz = z - lx * ch + lz * sh;
       const d = this.terrain.depthAt(wx, wz);

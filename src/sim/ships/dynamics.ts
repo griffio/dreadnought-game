@@ -145,7 +145,8 @@ export class ShipDynamics {
     const ordered = this.orderedSpeed;
     const target = ordered * (1 - h.turnSpeedLoss * this.rudder * this.rudder);
     let seconds = h.accelSeconds;
-    if (target < this.speed) seconds = ordered < 0 ? h.brakeSeconds : h.decelSeconds;
+    if (target * this.speed < 0) seconds = h.brakeSeconds; // engines working against her way, ahead or astern
+    else if (Math.abs(target) < Math.abs(this.speed)) seconds = h.decelSeconds; // shedding way, going ahead or astern
     this.speed += ((target - this.speed) / seconds) * dt;
 
     // Yaw: a rudder only steers with water flowing over it, from way on or from the propeller wash.

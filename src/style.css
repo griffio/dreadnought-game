@@ -1346,6 +1346,28 @@ body[data-torpedo='1'] .ghints:not(.thints) {
   width: 62px;
   height: 62px;
 }
+/* With the chart up in that corner (a torpedo attack, the Narrows, or PLOT) the three stand in a column beside it, not under it. */
+body:has(.chartplot:not([hidden])) .gtouch .shellcam,
+body:has(.chartplot:not([hidden])) .gtouch .replaybtn,
+body:has(.chartplot:not([hidden])) .gtouch .soundbtn {
+  left: calc(max(12px, env(safe-area-inset-left)) + 188px);
+}
+body:has(.chartplot:not([hidden])) .gtouch .shellcam {
+  top: calc(max(12px, env(safe-area-inset-top)) + 92px);
+}
+body:has(.chartplot:not([hidden])) .gtouch .replaybtn {
+  top: calc(max(12px, env(safe-area-inset-top)) + 160px);
+}
+body:has(.chartplot:not([hidden])) .gtouch .soundbtn {
+  top: calc(max(12px, env(safe-area-inset-top)) + 228px);
+}
+/* Narrower than a landscape tablet (one held upright) the cards would sit on the button cluster: they go above it. */
+@media (max-width: 949px) {
+  body[data-input='touch'] .gcard,
+  body[data-input='touch'] .tcard {
+    bottom: calc(max(12px, env(safe-area-inset-bottom)) + 302px);
+  }
+}
 /* The school's coach sits in that corner: the three buttons wait until it is done. */
 body[data-tutorial='1'] .gtouch .shellcam,
 body[data-tutorial='1'] .gtouch .replaybtn,

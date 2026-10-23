@@ -75,9 +75,12 @@ export async function runProbe(gpu: GpuContext, log: (line: string) => void): Pr
 
   for (const { key, n, jobs } of FFT_CONFIGS) {
     log(`running fft ${n}x${n} x${jobs}...`);
+    let scopeOpen = false;
     try {
       device.pushErrorScope('validation');
+      scopeOpen = true;
       const result = await runFftBench(device, n, jobs);
+      scopeOpen = false;
       const err = await device.popErrorScope();
       if (err) {
         report.fft[key] = { error: err.message };
@@ -90,6 +93,8 @@ export async function runProbe(gpu: GpuContext, log: (line: string) => void): Pr
           `${result.serialMs.toFixed(2)} ms/frame serial, ${result.dispatchesPerFrame} dispatches, max error ${result.maxError.toExponential(2)}`,
       );
     } catch (e) {
+      // A scope left pushed would catch every later validation error of the session and keep it from the page.
+      if (scopeOpen) void device.popErrorScope().catch(() => {});
       report.fft[key] = { error: String(e) };
       log(`FAIL fft ${key}: ${String(e)}`);
     }

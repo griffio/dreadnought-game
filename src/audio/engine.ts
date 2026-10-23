@@ -69,6 +69,10 @@ export class AudioEngine implements AudioOut {
   private buses = new Map<Bus, GainNode>();
   private readonly buffers = new Map<string, AudioBuffer>();
   private readonly raw = new Map<string, ArrayBuffer>();
+  /** Files this browser could not decode: given up on, not tried again every pass. */
+  private readonly undecodable = new Set<string>();
+  /** One-shots booked or sounding, by the context time each starts. */
+  private readonly starts = new Set<{ at: number }>();
   private manifest: Manifest | null = null;
   private settings: AudioSettings;
   private voices = 0;
@@ -99,7 +103,16 @@ export class AudioEngine implements AudioOut {
         continue;
       }
       const dir = name.includes('/') ? name.slice(0, name.lastIndexOf('/') + 1) : '';
-      const part = (await res.json()) as Manifest;
+      let part: Manifest;
+      try {
+        part = (await res.json()) as Manifest;
+        if (!part || typeof part.sounds !== 'object' || part.sounds === null) throw new Error('no sounds in it');
+      } catch (err) {
+        // A broken optional manifest (the voices) costs the game those sounds, not all of them.
+        if (name === MANIFESTS[0]) throw err;
+        console.warn(`audio manifest ${name} is unreadable:`, err);
+        continue;
+      }
       for (const [id, entry] of Object.entries(part.sounds)) {
         sounds[id] = entry;
         where.set(id, dir + entry.file);
@@ -171,17 +184,18 @@ export class AudioEngine implements AudioOut {
     if (!ctx) return Promise.resolve();
     this.decoding = (async () => {
       for (const [id, data] of [...this.raw]) {
-        if (this.buffers.has(id)) continue;
+        if (this.buffers.has(id) || this.undecodable.has(id)) continue;
         try {
           // `decodeAudioData` takes the buffer away, so give it a copy and keep the original for a later context.
           this.buffers.set(id, await ctx.decodeAudioData(data.slice(0)));
         } catch {
-          /* undecodable: skipped */
+          // A file this browser cannot decode (or a page served in its place) is given up on, or it would be tried again for ever.
+          this.undecodable.add(id);
         }
       }
       this.decoding = null;
       // Sounds fetched while decoding still need doing.
-      if (this.raw.size > this.buffers.size && this.ctx) void this.decodeAll();
+      if (this.raw.size > this.buffers.size + this.undecodable.size && this.ctx) void this.decodeAll();
     })();
     return this.decoding;
   }
@@ -271,29 +285,43 @@ export class AudioEngine implements AudioOut {
     return { head, tail, gain };
   }
 
+  /** How many one-shots are sounding at this moment of the context's clock (those booked for later are not yet counted). */
+  private sounding(now: number): number {
+    let n = 0;
+    for (const s of this.starts) if (s.at <= now) n++;
+    return n;
+  }
+
   play(id: string, o: PlayOptions = {}): void {
     const ctx = this.ctx;
     const buffer = this.buffers.get(id);
     if (!ctx || !buffer || ctx.state !== 'running' || this.settings.muted) return;
     if (!this.settings.voices && (o.bus ?? this.manifest?.sounds[id]?.bus) === 'voice') return;
-    if (this.voices >= MAX_VOICES) return;
+    const now = ctx.currentTime;
+    const at = now + Math.max(o.delay ?? 0, 0);
+    // The cap is on what is sounding now: a shot booked for when its sound arrives holds no place until it starts, or a long-range
+    // exchange would fill every place with sounds not yet begun and the guns alongside would go silent.
+    if (this.sounding(now) >= MAX_VOICES || this.starts.size >= MAX_VOICES * 4) return;
     const r = this.route(o, this.manifest?.sounds[id]);
     if (!r) return;
     const src = ctx.createBufferSource();
     src.buffer = buffer;
     src.playbackRate.value = o.rate ?? 1;
     src.connect(r.head);
-    this.voices++;
+    const slot = { at };
+    this.starts.add(slot);
+    this.voices = this.starts.size;
     this.played++;
     this.lastId = id;
     this.byId[id] = (this.byId[id] ?? 0) + 1;
     src.onended = () => {
-      this.voices--;
+      this.starts.delete(slot);
+      this.voices = this.starts.size;
       src.disconnect();
       r.tail.disconnect();
       r.gain.disconnect();
     };
-    src.start(ctx.currentTime + Math.max(o.delay ?? 0, 0));
+    src.start(at);
   }
 
   loop(id: string, o: PlayOptions = {}): LoopHandle {

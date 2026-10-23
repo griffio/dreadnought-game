@@ -151,7 +151,11 @@ async function boot(): Promise<void> {
   if (q.get('hud') === '0') overlayRoot.hidden = true;
 
   const overlay = new DebugOverlay(overlayRoot, q.get('debug') === '1');
-  const init = await initGpu((reason) => overlay.setStats(`GPU device lost (${reason}). Reload the page.`));
+  let deviceLost = false;
+  const init = await initGpu((reason) => {
+    deviceLost = true;
+    overlay.setStats(`GPU device lost (${reason}). Reload the page.`);
+  });
   if (!init.ok) {
     showUnsupported(init);
     return;
@@ -275,6 +279,7 @@ async function boot(): Promise<void> {
           const said = audio.describe(line.id);
           if (said.text) game.messages.push('info', `${ROLE_NAMES[said.role ?? ''] ?? 'CREW'}: "${said.text}"`, game.simTime);
         });
+        voices.enabled = audio.voicesOn;
         tapEffects(sea.fx, (name, args) => {
           if (!rebuilding) director?.onEffect(name, args);
         });
@@ -449,7 +454,15 @@ async function boot(): Promise<void> {
         audio.setMuted(!on);
         gunWidgets?.setSound(!on);
       }, !audio.muted);
-      controls.addToggle('Crew voices', (on) => audio.setVoices(on), audio.voicesOn);
+      controls.addToggle(
+        'Crew voices',
+        (on) => {
+          // The director is told as well as the engine, or it would go on ducking the guns and the sea for lines nobody hears.
+          audio.setVoices(on);
+          if (voices) voices.enabled = on;
+        },
+        audio.voicesOn,
+      );
       controls.addToggle('Camera shake', (on) => {
         shake.enabled = on;
         try {
@@ -792,6 +805,8 @@ async function boot(): Promise<void> {
   };
 
   const frame = (now: number) => {
+    // With the device gone every call into WebGPU is a no-op: the loop stops and the notice stands.
+    if (deviceLost) return;
     const frameMs = now - last;
     const dt = Math.min(Math.max(frameMs / 1000, 0), 0.1);
     last = now;

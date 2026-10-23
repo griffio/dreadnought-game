@@ -211,7 +211,7 @@ export class ShellWorld {
         const splash: SplashEvent = { kind: 'splash', shell, x, z, speed, angleDeg };
         // A shell that falls close to a ship may keep going under the water and strike below the belt.
         for (const box of boxes) {
-          if (!box.resolveDive || box.id === shell.shooter) continue;
+          if (!box.resolveDive || box.id === shell.shooter || shell.passed.includes(box.id)) continue;
           if (Math.hypot(x - box.x, z - box.z) > box.halfLength + 120) continue;
           const outcome = box.resolveDive({ shell, x, z, velocity: [s.vx, s.vy, s.vz], speed, angleDeg });
           if (outcome && outcome.consumed) {
@@ -243,31 +243,47 @@ export function segmentHitsBox(
   z1: number,
   box: HitBox,
 ): { x: number; y: number; z: number; lx: number; lz: number } | null {
-  const fx = Math.sin(box.heading);
-  const fz = -Math.cos(box.heading);
-  const rx = Math.cos(box.heading);
-  const rz = Math.sin(box.heading);
+  // Most steps of most shells are nowhere near the box: a step whose midpoint is farther from the box's centre than the box's
+  // reach plus half the step's own length cannot touch it. (This test runs for every shell against every ship, every tick.)
   const ax = x0 - box.x;
   const az = z0 - box.z;
   const bx = x1 - box.x;
   const bz = z1 - box.z;
-  const l0 = [ax * fx + az * fz, y0, ax * rx + az * rz] as const;
-  const l1 = [bx * fx + bz * fz, y1, bx * rx + bz * rz] as const;
-  const lo = [-box.halfLength, -box.draft, -box.halfBeam] as const;
-  const hi = [box.halfLength, box.height, box.halfBeam] as const;
+  const mx = (ax + bx) * 0.5;
+  const mz = (az + bz) * 0.5;
+  const reach = Math.hypot(box.halfLength, box.halfBeam) + 0.5 * Math.hypot(x1 - x0, z1 - z0);
+  if (mx * mx + mz * mz > reach * reach) return null;
+
+  const fx = Math.sin(box.heading);
+  const fz = -Math.cos(box.heading);
+  const rx = Math.cos(box.heading);
+  const rz = Math.sin(box.heading);
+  const l0x = ax * fx + az * fz;
+  const l0z = ax * rx + az * rz;
+  const l1x = bx * fx + bz * fz;
+  const l1z = bx * rx + bz * rz;
 
   let tMin = 0;
   let tMax = 1;
+  // Slab test along each of the box's axes, written out so that nothing is allocated.
   for (let k = 0; k < 3; k++) {
-    const d = l1[k]! - l0[k]!;
+    const a = k === 0 ? l0x : k === 1 ? y0 : l0z;
+    const b = k === 0 ? l1x : k === 1 ? y1 : l1z;
+    const lo = k === 0 ? -box.halfLength : k === 1 ? -box.draft : -box.halfBeam;
+    const hi = k === 0 ? box.halfLength : k === 1 ? box.height : box.halfBeam;
+    const d = b - a;
     if (Math.abs(d) < 1e-12) {
-      if (l0[k]! < lo[k]! || l0[k]! > hi[k]!) return null;
+      if (a < lo || a > hi) return null;
     } else {
-      let t1 = (lo[k]! - l0[k]!) / d;
-      let t2 = (hi[k]! - l0[k]!) / d;
-      if (t1 > t2) [t1, t2] = [t2, t1];
-      tMin = Math.max(tMin, t1);
-      tMax = Math.min(tMax, t2);
+      let t1 = (lo - a) / d;
+      let t2 = (hi - a) / d;
+      if (t1 > t2) {
+        const s = t1;
+        t1 = t2;
+        t2 = s;
+      }
+      if (t1 > tMin) tMin = t1;
+      if (t2 < tMax) tMax = t2;
       if (tMin > tMax) return null;
     }
   }
@@ -275,7 +291,7 @@ export function segmentHitsBox(
     x: x0 + (x1 - x0) * tMin,
     y: y0 + (y1 - y0) * tMin,
     z: z0 + (z1 - z0) * tMin,
-    lx: l0[0] + (l1[0] - l0[0]) * tMin,
-    lz: l0[2] + (l1[2] - l0[2]) * tMin,
+    lx: l0x + (l1x - l0x) * tMin,
+    lz: l0z + (l1z - l0z) * tMin,
   };
 }

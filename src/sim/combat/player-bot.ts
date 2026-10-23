@@ -64,7 +64,8 @@ export class PlayerBot {
       const toUs = azimuthTo(dx, dz);
       let off = t.heading - toUs;
       off = Math.atan2(Math.sin(off), Math.cos(off));
-      // It is a threat if its track passes close to us.
+      // It is a threat if it is coming our way and its track passes close to us: one that has gone by is only a wake.
+      if (Math.cos(off) <= 0) continue;
       if (Math.abs(Math.sin(off)) * range > 250 + me.halfBeam + 100) continue;
       if (worst === null || range < worst.range) worst = { range, bearing: azimuthTo(t.x - me.x, t.z - me.z) };
     }

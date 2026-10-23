@@ -80,6 +80,8 @@ export class PointerCameraSource implements InputSource {
       }
     });
     const release = (e: { pointerId: number; button?: number; type?: string }) => {
+      // A cancelled pointer does not say which button it was (-1): a right button held for the sight is let go with it.
+      if (pointerType === 'mouse' && e.type === 'pointercancel') this.sightHeld = false;
       if (pointerType === 'mouse' && e.button === 2) {
         this.sightHeld = false;
         return;
@@ -99,6 +101,8 @@ export class PointerCameraSource implements InputSource {
     // Read the fields explicitly: the properties of a real PointerEvent live on its prototype and do not survive a spread.
     target.addEventListener('pointerup', (e) => release({ pointerId: e.pointerId, button: e.button, type: 'pointerup' }));
     target.addEventListener('pointercancel', (e) => release({ pointerId: e.pointerId, button: e.button, type: 'pointercancel' }));
+    // The window losing focus (another app, a dialog) ends a held right button whose release the page will never see.
+    if (pointerType === 'mouse' && typeof window !== 'undefined') window.addEventListener('blur', () => (this.sightHeld = false));
     if (pointerType === 'mouse') {
       target.addEventListener(
         'wheel',
