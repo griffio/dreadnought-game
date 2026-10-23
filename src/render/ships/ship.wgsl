@@ -168,6 +168,35 @@ fn dazzle_colour(obj: vec3<f32>, n: vec3<f32>, seed: f32) -> vec3<f32> {
   return vec3<f32>(0.12, 0.19, 0.27);
 }
 
+// The Kriegsmarine's Baltic scheme of 1941, as Bismarck wore it in the Baltic and on her way north: the hull's ends painted dark grey
+// with a white false bow wave and stern wave to make her look shorter, and two chevrons of black and white stripes across her sides,
+// forward and aft of the superstructure, to confuse her heading. Hull sides only; decks and works stay grey. `len` is her length.
+fn baltic_colour(obj: vec3<f32>, n: vec3<f32>, base: vec3<f32>, seed: f32, len: f32) -> vec3<f32> {
+  if (abs(n.y) > 0.5) { return base; }
+  let ax = abs(obj.x);
+  let y = obj.y;
+  let half = len * 0.5;
+  let endFrom = len * 0.33;
+  let dark = vec3<f32>(0.10, 0.105, 0.115);
+  let white = vec3<f32>(0.82, 0.82, 0.80);
+  let black = vec3<f32>(0.012, 0.012, 0.014);
+  // The ends: dark, with the false wave rising toward the stem and the stern post.
+  if (ax > endFrom) {
+    let t = clamp((ax - endFrom) / max(half - endFrom, 1.0), 0.0, 1.0);
+    let crest = 0.6 + 3.4 * t * t;
+    let wave = step(-0.5, y) * step(y, crest);
+    return mix(dark, white, wave);
+  }
+  // The stripes: a forward chevron and an after one, each sloping toward the bow at the top.
+  let fore = obj.x > 0.0;
+  let startAt = select(len * 0.14, len * 0.11, fore);
+  if (ax < startAt) { return base; }
+  let u = select(-obj.x - y, obj.x - y, fore);
+  let k = floor(u / 5.5 + seed * 0.37);
+  let odd = k - 2.0 * floor(k * 0.5);
+  return select(black, white, odd > 0.5);
+}
+
 fn hull_surface(obj: vec3<f32>, n: vec3<f32>, dx: vec3<f32>, dy: vec3<f32>) -> Surf {
   // (`ship.flags.y` is the survey's ladder of how much of the ship's finish is drawn: 0 all of it, then the damage and lettering off at
   // 1, the weathering pictures at 2, the noise and plating at 3, the shadow lookups at 4, and the reflections and haze at 5.)
@@ -177,8 +206,12 @@ fn hull_surface(obj: vec3<f32>, n: vec3<f32>, dx: vec3<f32>, dy: vec3<f32>) -> S
     pl = plating(obj, n, vec2<f32>(3.1, 1.55));
   }
   var col = ship.hull_grey.rgb * (0.93 + 0.14 * pl.y);
+  // misc.w is the dazzle seed: positive the Royal Navy's patches, negative the Baltic scheme, zero her plain paint.
   if (ship.misc.w > 0.0) {
     col = mix(col, dazzle_colour(obj, n, ship.misc.w) * (0.93 + 0.14 * pl.y), smoothstep(-0.7, -0.3, obj.y));
+  } else if (ship.misc.w < 0.0) {
+    let painted = baltic_colour(obj, n, ship.hull_grey.rgb, -ship.misc.w, ship.flags.w / 0.0242);
+    col = mix(col, painted * (0.93 + 0.14 * pl.y), smoothstep(-0.7, -0.3, obj.y));
   }
   col *= 1.0 - 0.15 * pl.x;
 

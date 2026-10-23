@@ -189,3 +189,15 @@ describe('a replay of the colours', () => {
     expect(viewAt(rec, 3 / 30)!.ships[0]!.coloursDown).toBe(true);
   });
 });
+
+describe('the Baltic scheme', () => {
+  it('is Bismarck\'s own, with a seed, and the wounded ship at the end wears plain grey', async () => {
+    const { MARKINGS } = await import('../src/data/ships/markings');
+    expect(MARKINGS.bismarck.scheme).toBe('baltic');
+    expect(MARKINGS.bismarck.dazzle ?? 0).toBeGreaterThan(0);
+    expect(MARKINGS['bismarck-wounded'].scheme).toBeUndefined();
+    expect(MARKINGS['bismarck-wounded'].dazzle ?? 0).toBe(0);
+    // No British ship wears it: theirs is the Admiralty's patches, when they are dazzled at all.
+    for (const id of ['dreadnought', 'queen-elizabeth', 'rodney', 'king-george-v'] as const) expect(MARKINGS[id].scheme).toBeUndefined();
+  });
+});

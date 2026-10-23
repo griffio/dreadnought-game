@@ -18,13 +18,14 @@ A battleship does not aim a gun. You pick a target, the rangefinder reads her, t
 | The director's sight from the foretop | The Narrows: forts in the hills, mines, shoals and a spotter aircraft |
 | ![The damage report](docs/screenshots/damage-report.jpg) | ![Dazzle paint](docs/screenshots/dazzle.jpg) |
 | The damage report: compartments, turrets, water aboard, fires | Dazzle paint, weathering and plating on a Queen Elizabeth |
+| ![Bismarck in her Baltic scheme](docs/screenshots/bismarck-baltic.jpg) | ![The sea at golden hour](docs/screenshots/sea-golden-hour.jpg) |
+| Bismarck in her Baltic scheme of May 1941, as she comes into the Denmark Strait | The sea at golden hour |
 
-![The sea at golden hour](docs/screenshots/sea-golden-hour.jpg)
 
 ## What is in it
 
 - **Sea and sky.** A JONSWAP spectrum drives three FFT cascades in compute shaders, with foam, glitter and wakes that persist and advect; a Hillaire atmosphere with clouds; a real horizon with the earth's curvature, so distant ships appear mast-first. The sea's grid is drawn only in the arc the camera can see.
-- **Ships from a Forge.** Every hull is lofted from one declarative spec that also gives the armour, the compartments and the hit volumes, so what you see is what you can hit. Hull numbers, turret letters, ensigns, weathering and dazzle paint are drawn from the same data.
+- **Ships from a Forge.** Every hull is lofted from one declarative spec that also gives the armour, the compartments and the hit volumes, so what you see is what you can hit. Hull numbers, turret letters, ensigns, weathering and dazzle paint are drawn from the same data: the Admiralty's angular patches for a British ship that has had the refit, and Bismarck's Baltic chevrons and false bow waves of 1941.
 - **Honest fire control.** Rangefinder error that grows with the square of the range and keeps a bias no averaging removes; a plot that settles and decays when the target turns; dispersion per shell and per salvo; wind and Coriolis; an auto-spotter that applies the fall of shot; armour-piercing and high-explosive rounds.
 - **Damage that disables.** De Marre penetration against belt, side, deck, barbettes and turrets; compartments that flood and burn; list, trim and sinking; magazine flash; steering and fire-control casualties; crews that strike. Hits leave scorches and holes on the hull; a magazine going up breaks her in two.
 - **Torpedoes, destroyers and smoke.** Fast and slow settings, defects, arming runs, wakes the lookouts call by bearing, smoke screens that shut the rangefinder.

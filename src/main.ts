@@ -259,6 +259,9 @@ async function boot(): Promise<void> {
     if (q.get('marks') === '0') player.instance.paint = { ...player.instance.paint, markings: {} };
     // ?dazzle=<seed> paints her in a dazzle pattern (for tuning and screenshots; the dockyard's dazzle refit does it in the campaign).
     if (q.has('dazzle')) player.instance.paint = { ...player.instance.paint, markings: { ...player.instance.paint.markings, dazzle: Math.max(num('dazzle', 7), 0) } };
+    // ?scheme=patches|baltic chooses which dazzle the seed draws (the Royal Navy's patches, or the Kriegsmarine's Baltic stripes).
+    const scheme = q.get('scheme');
+    if (scheme === 'patches' || scheme === 'baltic') player.instance.paint = { ...player.instance.paint, markings: { ...player.instance.paint.markings, scheme } };
     // ?weather=0..1 sets how weathered her paint is (for tuning and screenshots).
     if (q.has('weather')) player.instance.paint = { ...player.instance.paint, weathering: Math.min(Math.max(num('weather', 0.55), 0), 1) };
   }

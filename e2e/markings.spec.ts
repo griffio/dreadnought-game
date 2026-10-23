@@ -123,6 +123,23 @@ test('markings: dazzle paint breaks up the ship’s colours', async ({ page }) =
   expect(problems).toEqual([]);
 });
 
+test('markings: Bismarck wears her Baltic scheme, which is not the Admiralty\'s patches', async ({ page }) => {
+  test.setTimeout(150_000);
+  const problems = watch(page);
+  // Abeam of her at 300 m: the hull from stem to stern across the middle of the picture.
+  const BISMARCK = '/?scenario=duel&player=bismarck&target=0&free=1&freeze=20&scale=0.75&fov=40&hud=0&x=300&cam=18&z=-10&yaw=270&pitch=-3&sun=28&az=120';
+  const hull = { x: 160, y: 330, width: 960, height: 60 };
+  const baltic = await crop(page, BISMARCK, hull, 'test-results/markings-baltic.png');
+  const plain = await crop(page, `${BISMARCK}&marks=0`, hull);
+  const patches = await crop(page, `${BISMARCK}&scheme=patches`, hull);
+  // Black and white chevrons and the dark ends against plain grey (about 9 over this band, which is mostly hull), and a different
+  // picture from the Admiralty's patches drawn from the same seed (about 15).
+  expect(await meanDifference(page, baltic, plain)).toBeGreaterThan(6);
+  expect(await meanDifference(page, baltic, patches)).toBeGreaterThan(10);
+  expect(await page.evaluate(() => window.__gpuErrors ?? [])).toEqual([]);
+  expect(problems).toEqual([]);
+});
+
 /** A campaign in the player's browser: prestige in hand, and the sorties won so far. */
 function campaign(won: string[], refits: Record<string, number> = {}, prestige = 50): string {
   const missions: Record<string, unknown> = {};

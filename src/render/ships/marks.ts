@@ -14,9 +14,13 @@ export interface ShipMarkings {
   turretLetters?: boolean;
   /** The ensign she flies. */
   ensign?: EnsignKind;
-  /** The seed of a dazzle pattern (0 or none: her Admiralty paint). */
+  /** The seed of a dazzle pattern (0 or none: her plain paint). */
   dazzle?: number;
+  /** Which dazzle she wears: the Royal Navy's angular patches (default), or the Kriegsmarine's Baltic scheme of 1941 (Bismarck's chevron stripes and false bow waves). */
+  scheme?: DazzleScheme;
 }
+
+export type DazzleScheme = 'patches' | 'baltic';
 
 const CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 export const GLYPH_COLS = 6;

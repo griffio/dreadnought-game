@@ -13,7 +13,8 @@ export const MARKINGS: Record<ShipId, ShipMarkings> = {
   'king-george-v': { hullNumber: '41', turretLetters: true, ensign: 'white' },
   hessen: { ensign: 'imperial' },
   kaiser: { ensign: 'imperial' },
-  bismarck: { ensign: 'reich' },
+  // Her Baltic scheme of May 1941, the famous one: painted out at Bergen before the breakout in fact, worn here for the Denmark Strait.
+  bismarck: { ensign: 'reich', dazzle: 19, scheme: 'baltic' },
   'bismarck-wounded': { ensign: 'reich' },
   destroyer: { hullNumber: 'S144', ensign: 'imperial' },
 };

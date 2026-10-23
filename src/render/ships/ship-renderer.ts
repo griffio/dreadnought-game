@@ -181,7 +181,9 @@ export class ShipInstance {
     d.set(place, 0);
     d.set(src.rig.matrices, 16);
     const o = 16 + MAX_NODES * 16;
-    d.set([...src.paint.hull, 0, ...src.paint.superstructure, 0, src.paint.wetness, src.paint.concrete ? 1 : 0, src.cutaway, src.paint.markings?.dazzle ?? 0], o);
+    // The dazzle seed's sign names the scheme the shader draws: positive the Royal Navy's patches, negative the Baltic stripes.
+    const dazzle = (src.paint.markings?.dazzle ?? 0) * (src.paint.markings?.scheme === 'baltic' ? -1 : 1);
+    d.set([...src.paint.hull, 0, ...src.paint.superstructure, 0, src.paint.wetness, src.paint.concrete ? 1 : 0, src.cutaway, dazzle], o);
     d.set([simTime, src.paint.weathering ?? 0.55, src.decals.count, src.fireCount], o + 12);
     src.decals.pack(d, o + 16);
     const c = o + 16 + MAX_DECALS * DECAL_FLOATS;
