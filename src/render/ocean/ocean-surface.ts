@@ -7,6 +7,8 @@ import scene from '../shaders/scene.wgsl?raw';
 import shadowChunk from '../shaders/shadow.wgsl?raw';
 import skyMap from '../shaders/sky_map.wgsl?raw';
 import type { ShadowMap } from '../ships/shadow-map';
+import type { Camera } from '../camera';
+import { visibleArc, type Arc } from './ocean-cull';
 import type { OceanField } from './ocean-field';
 import surfaceWgsl from './ocean_surface.wgsl?raw';
 
@@ -16,6 +18,8 @@ const NEAR_RINGS = 64;
 const NEAR_R0 = 2;
 const FAR_GROWTH = 1.0235;
 const MAX_RADIUS = 40_000;
+/** Bands of quads nearest the camera that are always drawn whole: displaced vertices this near can swing far round in azimuth. */
+const NEAR_FULL_BANDS = 16;
 
 export interface OceanSurfaceOptions {
   device: GPUDevice;
@@ -46,7 +50,12 @@ function ringCount(): number {
 
 export class OceanSurface {
   private readonly indexBuffer: GPUBuffer;
-  private readonly indexCount: number;
+  /** Indices of the near bands (ring-major, drawn whole), then of the far bands laid out segment by segment (a column of quads each). */
+  private readonly nearCount: number;
+  private readonly farStride: number;
+  private readonly nearBands: number;
+  /** The segments of the far bands drawn this frame. */
+  arc: Arc = { from: 0, count: GRID_SEGS };
 
   private constructor(
     device: GPUDevice,
@@ -58,20 +67,24 @@ export class OceanSurface {
     private readonly shadowGroup: GPUBindGroup,
   ) {
     const rings = ringCount();
-    const indices = new Uint32Array((rings - 1) * GRID_SEGS * 6);
+    const bands = rings - 1;
+    const indices = new Uint32Array(bands * GRID_SEGS * 6);
     let o = 0;
-    for (let i = 0; i < rings - 1; i++) {
-      for (let j = 0; j < GRID_SEGS; j++) {
-        const j1 = (j + 1) % GRID_SEGS;
-        const v00 = i * GRID_SEGS + j;
-        const v01 = i * GRID_SEGS + j1;
-        const v10 = (i + 1) * GRID_SEGS + j;
-        const v11 = (i + 1) * GRID_SEGS + j1;
-        indices.set([v00, v10, v01, v01, v10, v11], o);
-        o += 6;
-      }
-    }
-    this.indexCount = indices.length;
+    const quad = (i: number, j: number): void => {
+      const j1 = (j + 1) % GRID_SEGS;
+      const v00 = i * GRID_SEGS + j;
+      const v01 = i * GRID_SEGS + j1;
+      const v10 = (i + 1) * GRID_SEGS + j;
+      const v11 = (i + 1) * GRID_SEGS + j1;
+      indices.set([v00, v10, v01, v01, v10, v11], o);
+      o += 6;
+    };
+    // The near bands ring by ring, then the far bands segment by segment, so that an arc of the circle is one or two index ranges.
+    this.nearBands = Math.min(NEAR_FULL_BANDS, bands);
+    for (let i = 0; i < this.nearBands; i++) for (let j = 0; j < GRID_SEGS; j++) quad(i, j);
+    this.nearCount = o;
+    for (let j = 0; j < GRID_SEGS; j++) for (let i = this.nearBands; i < bands; i++) quad(i, j);
+    this.farStride = (bands - this.nearBands) * 6;
     this.indexBuffer = device.createBuffer({
       label: 'ocean-indices',
       size: indices.byteLength,
@@ -135,6 +148,31 @@ export class OceanSurface {
     return new OceanSurface(device, field, pipeline, sceneGroup, envGroup, [waveGroup(0), waveGroup(1)], shadowGroup);
   }
 
+  /**
+   * Settle which arc of the grid the camera can see this frame (call before `draw`). `waveAmplitude` bounds the sea's rise and fall and
+   * `maxSideways` how far the waves carry a vertex horizontally, both in metres; `wholeCircle` draws all of it (for comparison).
+   */
+  setView(camera: Camera, waveAmplitude: number, maxSideways: number, wholeCircle = false): void {
+    this.arc = wholeCircle
+      ? { from: 0, count: GRID_SEGS }
+      : visibleArc({
+          forward: camera.forward,
+          tanHalfFovY: camera.tanHalfFovY,
+          aspect: camera.aspect,
+          cameraHeight: camera.position[1],
+          waveAmplitude,
+          maxSideways,
+          innerRadius: NEAR_R0 + this.nearBands,
+          segments: GRID_SEGS,
+        });
+  }
+
+  /** The share of the grid's vertices drawn this frame, 0..1. */
+  get drawnFraction(): number {
+    const total = this.nearCount + GRID_SEGS * this.farStride;
+    return (this.nearCount + this.arc.count * this.farStride) / total;
+  }
+
   draw(pass: GPURenderPassEncoder): void {
     pass.setPipeline(this.pipeline);
     pass.setBindGroup(0, this.sceneGroup);
@@ -142,7 +180,19 @@ export class OceanSurface {
     pass.setBindGroup(2, this.waveGroups[this.field.currentIndex]!);
     pass.setBindGroup(3, this.shadowGroup);
     pass.setIndexBuffer(this.indexBuffer, 'uint32');
-    pass.drawIndexed(this.indexCount);
+    // The near sea all round, then the arc of the far sea the camera can see (in two pieces when it wraps past the last segment).
+    pass.drawIndexed(this.nearCount);
+    const { from, count } = this.arc;
+    if (count <= 0) return;
+    const base = this.nearCount;
+    const stride = this.farStride;
+    if (count >= GRID_SEGS) {
+      pass.drawIndexed(GRID_SEGS * stride, 1, base);
+      return;
+    }
+    const first = Math.min(count, GRID_SEGS - from);
+    pass.drawIndexed(first * stride, 1, base + from * stride);
+    if (count > first) pass.drawIndexed((count - first) * stride, 1, base);
   }
 
   destroy(): void {

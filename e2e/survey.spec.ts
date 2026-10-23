@@ -13,7 +13,7 @@ test('perf survey runs and every step reports sensible numbers', async ({ page }
     expect(r.fps).toBeGreaterThan(0.5);
     expect(r.costMs).toBeGreaterThan(0);
   }
-  expect(rows.length).toBe(32);
+  expect(rows.length).toBe(33);
   // The new scenes are in it: the ship hurt, broken in two, and the wreckage.
   for (const name of ['ship drawn with the discarding shader', 'ship finish: and no reflections or haze', 'ship hurt: fires, wrecks, dazzle', 'ship broken in two', 'wreckage and oil slick', 'ship under the sight cutaway', 'baseline (after the ship scenes)']) expect(rows.map((r) => r.name)).toContain(name);
   // And the dev server has had the report to keep.

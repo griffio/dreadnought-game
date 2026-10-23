@@ -98,6 +98,8 @@ export interface SeaDebugFlags {
   shipDiscard: boolean;
   /** Draw only part of each ship: 0 all of her, 1 her hull and decks, 2 her works (the survey's way of finding where a cost is). */
   shipParts: number;
+  /** Draw the whole circle of the sea's grid, not only the arc the camera can see (for comparison: `?oceancull=0`). */
+  oceanWholeCircle: boolean;
 }
 
 /** Wakes farther than this from the camera are not built (they would be a few pixels). */
@@ -126,6 +128,7 @@ export class SeaRenderer {
     shipDiscard: false,
     shipParts: 0,
     skipFx: false,
+    oceanWholeCircle: false,
   };
   /** Gunnery spectacle: muzzle blasts, splashes, bursts, tracers. */
   readonly fx: Effects;
@@ -330,6 +333,11 @@ export class SeaRenderer {
     this.post.resize(width, height);
   }
 
+  /** The arc of the sea's grid drawn this frame (segments of 384), and the share of its vertices that is. */
+  get oceanArc(): { from: number; count: number; drawnFraction: number } {
+    return { ...this.surface.arc, drawnFraction: this.surface.drawnFraction };
+  }
+
   /** Smoothed GPU milliseconds per phase, or null when the device has no timestamp queries. */
   get gpuTimes(): GpuTimes | null {
     return this.timer ? this.timer.times : null;
@@ -457,6 +465,11 @@ export class SeaRenderer {
       this.particles.update(dtSeconds * this.fxTimeScale);
       this.particles.prepare(camera.position[0], camera.position[1], camera.position[2]);
     }
+
+    // The sea's grid is drawn only where the camera can see it: the arc of its view, and the whole of the near sea. The waves' rise
+    // and sideways carry are bounded generously from the significant wave height.
+    const hs = this.estimateHs();
+    this.surface.setView(camera, hs + 1, (hs + 1) * p.choppiness + 1, this.debug.oceanWholeCircle);
 
     const encoder = device.createCommandEncoder({ label: 'frame' });
 

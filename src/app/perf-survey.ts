@@ -84,6 +84,8 @@ const STEPS: Step[] = [
   { name: 'no cloud/ambient refresh', scale: 1, flags: { skipClouds: true } },
   { name: 'ocean field frozen (no FFT)', scale: 1, flags: { freezeOcean: true } },
   { name: 'no ocean surface drawn', scale: 1, flags: { skipOceanDraw: true } },
+  // The sea's grid is normally drawn only in the arc the camera sees (about two fifths of it): the whole circle, for the saving.
+  { name: 'sea grid: whole circle drawn', scale: 1, flags: { oceanWholeCircle: true } },
   { name: 'no sky drawn', scale: 1, flags: { skipSkyDraw: true } },
   {
     name: 'floor: sky + composite only',

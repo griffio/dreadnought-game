@@ -55,7 +55,7 @@ const SIGHT_CUTAWAY_M = 14;
 const REPLAY_FROM_FIGHT_S = 30;
 const REPLAY_FROM_RESULT_S = 45;
 /** Parameters that do not choose a scenario: a URL with only these opens the front door. */
-const MENU_PARAMS = new Set(['touch', 'debug', 'aniso', 'q', 'msaa', 'scale', 'shadow', 'menu']);
+const MENU_PARAMS = new Set(['touch', 'debug', 'aniso', 'q', 'msaa', 'scale', 'shadow', 'menu', 'oceancull']);
 
 function safeStorage(): Storage | null {
   try {
@@ -171,6 +171,8 @@ async function boot(): Promise<void> {
   const sea = await SeaRenderer.create(gpu, canvas, { oceanSize, msaa, shadowSize, anisotropy: aniso }, seaParams);
   window.__sea = sea;
   window.__camera = camera;
+  // ?oceancull=0 draws the whole circle of the sea's grid instead of the arc in view (for comparing the cost).
+  if (q.get('oceancull') === '0') sea.debug.oceanWholeCircle = true;
   // ?terrain=narrows puts the Narrows' land in the world without the fight (the mission scenario does it itself).
   if (q.get('terrain') === 'narrows' && q.get('scenario') !== 'narrows') {
     const land = narrowsTerrain();
@@ -999,7 +1001,7 @@ async function boot(): Promise<void> {
           `FALL OF SHOT  M7 ${narrows ? 'narrows' : attack ? 'attack' : 'duel'}${paused ? '  [PAUSED]' : ''}`,
           `${adapterInfo.vendor} ${adapterInfo.architecture}`.trim(),
           `${fps.toFixed(0)} fps   sim tick ${tick}`,
-          `${sizer.width}x${sizer.height}  scale ${sizer.renderScale.toFixed(2)} (${scaler.changes} changes)  ocean ${oceanSize}  msaa ${msaa}`,
+          `${sizer.width}x${sizer.height}  scale ${sizer.renderScale.toFixed(2)} (${scaler.changes} changes)  ocean ${oceanSize} (${Math.round(sea.oceanArc.drawnFraction * 100)}% of the grid drawn)  msaa ${msaa}`,
           gpuLine,
           `* GPU phase times are hints on Apple GPUs; use Perf survey for real costs.`,
           `gpu errors: ${gpu.errors.length}   input ${input.activeDevice}`,
