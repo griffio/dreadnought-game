@@ -7,7 +7,7 @@ test('boots, renders frames, no GPU errors', async ({ page }) => {
   });
   page.on('pageerror', (e) => problems.push(String(e)));
 
-  await page.goto('/');
+  await page.goto('/?debug=1');
   await expect(page.locator('.hud')).toContainText('fps', { timeout: 20_000 });
   await page.waitForTimeout(1500);
 

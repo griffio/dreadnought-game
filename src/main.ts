@@ -158,7 +158,11 @@ async function boot(): Promise<void> {
   for (const [k, v] of Object.entries((sortie ?? practice ?? playtest)?.params ?? {})) if (!q.has(k)) q.set(k, v);
   if (q.get('hud') === '0') overlayRoot.hidden = true;
 
-  const overlay = new DebugOverlay(overlayRoot, q.get('debug') === '1');
+  // ?debug=1 puts the developer's instruments on the screen: the stats readout (expanded) and the Sea & Sky panel. In play only the
+  // game's own HUD shows.
+  const debug = q.get('debug') === '1';
+  const overlay = new DebugOverlay(overlayRoot, debug);
+  overlay.showStats(debug);
   let deviceLost = false;
   const init = await initGpu((reason) => {
     deviceLost = true;
@@ -443,6 +447,7 @@ async function boot(): Promise<void> {
   }
   const freeCamera = freeCam ? new FreeCamera(camera, canvas) : null;
   const controls = new SeaControls(overlayRoot, sea.params, camera, () => sea.regenerateSea());
+  if (!debug) controls.element.style.display = 'none';
   if (player) {
     if (game && scenario) {
       // Duel, then the torpedo attack, then the Narrows, then round again.
@@ -997,7 +1002,7 @@ async function boot(): Promise<void> {
       fps = (fpsFrames * 1000) / (now - fpsSince);
       fpsFrames = 0;
       fpsSince = now;
-      controls.refresh();
+      if (debug) controls.refresh();
       const { adapterInfo } = gpu;
       const g = sea.gpuTimes;
       const gpuLine = g

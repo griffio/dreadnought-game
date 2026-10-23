@@ -44,9 +44,15 @@ export class DebugOverlay {
     });
   }
 
+  /** Show or hide the readout: it is a developer's instrument, on the screen only with `?debug=1`. */
+  showStats(show: boolean): void {
+    this.stats.style.display = show ? '' : 'none';
+    if (show) this.render();
+  }
+
   setStats(text: string): void {
     this.text = text;
-    this.render();
+    if (this.stats.style.display !== 'none') this.render();
   }
 
   private render(): void {
