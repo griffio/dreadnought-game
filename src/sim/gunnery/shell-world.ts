@@ -31,6 +31,22 @@ export interface LiveShell {
   state: ShellState;
   /** Ships this shell has already gone clean through: it cannot hit them again. */
   passed: number[];
+  /** Where it was at the start of the last step: a frame drawn between steps shows it part of the way from here (see `shellAt`). */
+  prevX: number;
+  prevY: number;
+  prevZ: number;
+}
+
+/**
+ * Where a shell is to be drawn `alpha` (0..1) of the way through the step it last took. The simulation moves in fixed steps and the
+ * picture is drawn between them, like the ships; without this a shell, and a camera riding it, would jump once a step, and three
+ * frames apart when the shell camera slows the game.
+ */
+export function shellAt(shell: LiveShell, alpha: number, out: { x: number; y: number; z: number }): void {
+  const s = shell.state;
+  out.x = shell.prevX + (s.x - shell.prevX) * alpha;
+  out.y = shell.prevY + (s.y - shell.prevY) * alpha;
+  out.z = shell.prevZ + (s.z - shell.prevZ) * alpha;
 }
 
 type V3 = [number, number, number];
@@ -130,6 +146,9 @@ export class ShellWorld {
       spec,
       state: launch(spec, shot.muzzle, shot.azimuth, shot.elevation, [shot.shipVx, shot.shipVz], shot.velocityScale),
       passed: [],
+      prevX: shot.muzzle[0],
+      prevY: shot.muzzle[1],
+      prevZ: shot.muzzle[2],
     };
     this.shells.push(shell);
     return shell;
@@ -148,6 +167,9 @@ export class ShellWorld {
       const px = s.x;
       const py = s.y;
       const pz = s.z;
+      shell.prevX = px;
+      shell.prevY = py;
+      shell.prevZ = pz;
       stepShell(s, shell.spec, this.env, dt);
 
       let consumed = false;

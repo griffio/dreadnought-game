@@ -37,6 +37,9 @@ const liveShell = (spec = shell12): LiveShell => ({
   spec,
   state: { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, t: 0 },
   passed: [],
+  prevX: 0,
+  prevY: 0,
+  prevZ: 0,
 });
 
 /** A step of a shell travelling west (-x) at `speed`, descending at `descent` degrees, reaching x = `atX` at height y. */

@@ -24,7 +24,7 @@ import type { EnemyReadout } from '../ui/gunnery-hud';
 import type { Environment } from '../sim/gunnery/ballistics';
 import type { Contact, Gunnery, GunneryStatus } from '../sim/gunnery/gunnery';
 import type { MuzzleShot } from '../sim/gunnery/battery';
-import type { ShellEvent } from '../sim/gunnery/shell-world';
+import { shellAt, type ShellEvent } from '../sim/gunnery/shell-world';
 import type { SalvoReport } from '../sim/gunnery/spotting';
 import { Fort } from '../sim/fort/fort';
 import { mountsFromSpec } from '../sim/gunnery/mounts';
@@ -216,6 +216,8 @@ export class Game {
   private readonly lastTrail = new Map<number, number>();
   private pruneTimer = 0;
   private readonly project: [number, number] = [0, 0];
+  /** Scratch for where a shell is drawn this frame. */
+  private readonly shellPoint = { x: 0, y: 0, z: 0 };
   private readonly smokeClock = new Map<ShipActor, number>();
   private readonly fireClock = new Map<ShipActor, number>();
   private readonly lastStatus = new Map<ShipActor, string>();
@@ -524,22 +526,24 @@ export class Game {
     return [this.player, ...this.enemies];
   }
 
-  /** The player's heavy shells in the air, for the shell camera and the recorder. */
-  playerShells(): ShellShot[] {
+  /** The player's heavy shells in the air, for the shell camera and the recorder, drawn `alpha` of the way through their last step. */
+  playerShells(alpha = 1): ShellShot[] {
     const out: ShellShot[] = [];
     for (const b of this.playerCombatant.batteries) {
       if (b.setup.id !== 'main') continue;
       for (const sh of b.gunnery.world.shells) {
         const s = sh.state;
-        out.push({ id: sh.id, x: s.x, y: s.y, z: s.z, vx: s.vx, vy: s.vy, vz: s.vz });
+        const shot: ShellShot = { id: sh.id, x: s.x, y: s.y, z: s.z, vx: s.vx, vy: s.vy, vz: s.vz };
+        shellAt(sh, alpha, shot);
+        out.push(shot);
       }
     }
     return out;
   }
 
   /** A sample of the picture for the recorder: where every ship is drawn and every turret points, the player's shells, the sea's clock. */
-  replaySample(): ReplaySample {
-    return { t: this.simTime, sea: this.sea.time, ships: this.replayShips.map((a) => a.shot()), shells: this.playerShells() };
+  replaySample(alpha = 1): ReplaySample {
+    return { t: this.simTime, sea: this.sea.time, ships: this.replayShips.map((a) => a.shot()), shells: this.playerShells(alpha) };
   }
 
   /** The player's main-battery gunnery officer. */
@@ -1211,19 +1215,21 @@ export class Game {
     for (const e of this.enemies) e.updateRender(alpha, dt);
     const fx = this.sea.fx;
 
-    // Shells in flight: a bright speck each frame and a little smoke now and then.
+    // Shells in flight: a bright speck each frame (where the shell is between steps, as the ships are drawn) and a little smoke now and then.
     if (dt > 0) {
+      const at = this.shellPoint;
       for (const c of this.combatants()) {
         for (const b of c.batteries) {
           for (const shell of b.gunnery.world.shells) {
             const s = shell.state;
             const kind = shellKind(shell.spec);
-            fx.tracer(s.x, s.y, s.z, kind);
+            shellAt(shell, alpha, at);
+            fx.tracer(at.x, at.y, at.z, kind);
             const slot = Math.floor(s.t / 0.12);
             const key = shell.id + (c === this.playerCombatant ? 0 : 1e9 * (c.id - 1)) + (b === c.batteries[0] ? 0 : 5e8);
             if (shell.spec.diameterM > 0.2 && this.lastTrail.get(key) !== slot) {
               this.lastTrail.set(key, slot);
-              fx.tracerTrail(s.x, s.y, s.z, kind);
+              fx.tracerTrail(at.x, at.y, at.z, kind);
             }
           }
         }
@@ -1239,7 +1245,7 @@ export class Game {
         this.damageEffects(actor, c, dt);
       }
       this.torpedoEffects();
-      this.shoreEffects(dt);
+      this.shoreEffects(dt, alpha);
       this.aftermathEffects(dt);
     }
     for (const a of this.fortActors) a.updateRender();
@@ -1275,18 +1281,20 @@ export class Game {
   }
 
   /** The land's side of the spectacle: shells from the batteries, their wrecks burning, the aircraft, the mines the aircraft has marked. */
-  private shoreEffects(dt: number): void {
+  private shoreEffects(dt: number, alpha: number): void {
     const fx = this.sea.fx;
+    const at = this.shellPoint;
     for (const f of this.forts) {
       for (const shell of f.gunnery.world.shells) {
         const s = shell.state;
         const kind = shellKind(shell.spec);
-        fx.tracer(s.x, s.y, s.z, kind);
+        shellAt(shell, alpha, at);
+        fx.tracer(at.x, at.y, at.z, kind);
         const slot = Math.floor(s.t / 0.12);
         const key = shell.id + 2e9 * (f.id - FIRST_FORT_ID + 1);
         if (shell.spec.diameterM > 0.2 && this.lastTrail.get(key) !== slot) {
           this.lastTrail.set(key, slot);
-          fx.tracerTrail(s.x, s.y, s.z, kind);
+          fx.tracerTrail(at.x, at.y, at.z, kind);
         }
       }
     }

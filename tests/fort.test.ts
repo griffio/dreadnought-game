@@ -43,7 +43,7 @@ describe('a fort at the arcade pace', () => {
 });
 
 function shell(gun = GUN_12_45_MK_X, fuze?: 'impact'): LiveShell {
-  return { id: 1, salvo: 1, shooter: 1, spec: fuze ? { ...gun.shell, fuze } : gun.shell, state: { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, t: 0 }, passed: [] };
+  return { id: 1, salvo: 1, shooter: 1, spec: fuze ? { ...gun.shell, fuze } : gun.shell, state: { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, t: 0 }, passed: [], prevX: 0, prevY: 0, prevZ: 0 };
 }
 
 /** A shell that comes down on a position at the given speed and (steep or flat) angle. */

@@ -297,3 +297,32 @@ describe('frame-time hygiene', () => {
     expect(s.advance(1 / 60)).toBe(1);
   });
 });
+
+describe('shells between steps', () => {
+  it('a shell is drawn part of the way from where its last step began, so a frame between steps does not jump', async () => {
+    const { ShellWorld, shellAt } = await import('../src/sim/gunnery/shell-world');
+    const world = new ShellWorld(CALM);
+    const shell = world.spawn(
+      { salvo: 1, turret: 0, gun: 0, muzzle: [0, 10, 0], azimuth: 0, elevation: 15 * DEG, velocityScale: 1, shipVx: 0, shipVz: 0, direction: [0, 0, -1] },
+      GUN_12_45_MK_X.shell,
+      1,
+    );
+    const at = { x: 0, y: 0, z: 0 };
+    shellAt(shell, 0.5, at);
+    expect([at.x, at.y, at.z]).toEqual([0, 10, 0]); // not yet stepped: it is at the muzzle whatever the fraction
+    world.step(1 / 60, []);
+    const s = shell.state;
+    expect([shell.prevX, shell.prevY, shell.prevZ]).toEqual([0, 10, 0]);
+    shellAt(shell, 0, at);
+    expect(at.z).toBeCloseTo(0, 9);
+    shellAt(shell, 1, at);
+    expect(at.z).toBeCloseTo(s.z, 9);
+    shellAt(shell, 0.25, at);
+    expect(at.z).toBeCloseTo(s.z * 0.25, 9);
+    expect(at.y).toBeCloseTo(10 + (s.y - 10) * 0.25, 9);
+    const zBefore = s.z;
+    world.step(1 / 60, []);
+    expect(shell.prevZ).toBeCloseTo(zBefore, 9); // the previous position moves on with each step
+    expect(s.z).toBeLessThan(zBefore);
+  });
+});

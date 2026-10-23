@@ -98,7 +98,7 @@ function make(): Combatant {
   });
 }
 
-const live: LiveShell = { id: 1, salvo: 1, shooter: 99, spec: GUN_12_45_MK_X.shell, state: { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, t: 0 }, passed: [] };
+const live: LiveShell = { id: 1, salvo: 1, shooter: 99, spec: GUN_12_45_MK_X.shell, state: { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, t: 0 }, passed: [], prevX: 0, prevY: 0, prevZ: 0 };
 
 /** A step of a shell travelling west (-x) at `speed`, descending at `descent` degrees, reaching x = `atX` at height y. */
 function stepWest(atX: number, y: number, z: number, speed: number, descent: number): ImpactInfo {

@@ -100,6 +100,8 @@ declare global {
     /** The file the dev server kept the last survey report in (perf-results/...), once it has said so. */
     __perfSent?: string;
     __gpuTiming?: () => import('./render/gpu-timer').GpuTimes | null;
+    /** The shell camera, for the tests to read its state and pace. */
+    __shellCam?: ShellCamera;
   }
 }
 
@@ -646,6 +648,7 @@ async function boot(): Promise<void> {
   const recorder = game ? new ReplayRecorder() : null;
   if (game && recorder) recorder.install(sea.fx, () => game.simTime);
   const shellCam = new ShellCamera();
+  window.__shellCam = shellCam;
   let shellCamOn = false;
   let shellCamRidden = -1;
   /** How much slower than the clock the game runs: the shell camera slows the last seconds of a flight. */
@@ -865,7 +868,7 @@ async function boot(): Promise<void> {
       // Camera.
       if (game && player) {
         game.updateRender(stepper.alpha, paused ? 0 : dt);
-        if (!paused) recorder?.sample(game.replaySample());
+        if (!paused) recorder?.sample(game.replaySample(stepper.alpha));
         const pose = player.instance.pose;
         // At the front door the ship at anchor floats where the player's ship does.
         if (anchoredNow) Object.assign(anchored.get(anchoredNow)!.pose, pose);
@@ -898,7 +901,8 @@ async function boot(): Promise<void> {
         // the picture, takes the view back.
         let shellShot: ReturnType<ShellCamera['update']> = null;
         if (shellCamOn && !paused) {
-          const shells = game.playerShells();
+          // Shells part-way through their step, like the ships: the camera riding one then moves every frame, not once a step.
+          const shells = game.playerShells(stepper.alpha);
           if (sightOwns || intent.cameraOrbit[0] !== 0 || intent.cameraOrbit[1] !== 0 || intent.cameraZoom !== 0) cutShellCam();
           else {
             const newest = shells.reduce((m, sh) => Math.max(m, sh.id), -1);
