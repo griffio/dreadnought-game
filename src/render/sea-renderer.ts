@@ -2,6 +2,7 @@ import { loadWeathering } from './ships/weathering';
 import { degToRad, type Vec3 } from '../math/vec3';
 import type { GpuContext } from '../platform/gpu-device';
 import { compassToWaveDir, heightFromModes } from '../sim/ocean/spectrum';
+import { CASCADE_LENGTHS, DEFAULT_WAVE_SPEC } from '../sim/ocean/waves';
 import type { Camera } from './camera';
 import { GpuTimer, type GpuTimes } from './gpu-timer';
 import { OCEAN_LOOP_SECONDS, OceanField, type FoamSettings } from './ocean/ocean-field';
@@ -43,9 +44,8 @@ export interface SeaParams {
 export const DEFAULT_SEA: SeaParams = {
   sunElevationDeg: 6,
   sunAzimuthDeg: 250,
-  windSpeed: 11,
-  waveHeadingDeg: 70,
-  fetchKm: 120,
+  // The waves (wind, heading, fetch, seed) are the sim's defaults, so a fight measured without a renderer floats on this very sea.
+  ...DEFAULT_WAVE_SPEC,
   cloudCover: 0.5,
   cloudAltitudeM: 1800,
   cloudDriftMs: 6,
@@ -53,7 +53,6 @@ export const DEFAULT_SEA: SeaParams = {
   exposureBias: 0,
   choppiness: 1.0,
   bloom: 0.12,
-  seed: 7,
 };
 
 export interface SeaQuality {
@@ -66,7 +65,6 @@ export interface SeaQuality {
   anisotropy?: 1 | 2 | 4;
 }
 
-const CASCADE_LENGTHS = [600, 121, 25.3] as const;
 const SUN_ANGULAR_RADIUS = 0.00465;
 const BASE_EXPOSURE = 3.2;
 const HDR_FORMAT: GPUTextureFormat = 'rgba16float';
@@ -181,6 +179,7 @@ export class SeaRenderer {
     this.sceneBuffer = sceneBuffer;
     this.wakeSink = new VertexSink(wake.staging);
     this.timer = GpuTimer.create(gpu.device);
+    Object.defineProperty(this.buoyancyWaves, 'modes', { get: () => this.field.waveModes });
     const context = canvas.getContext('webgpu');
     if (!context) throw new Error('Could not acquire a webgpu canvas context');
     this.context = context;
@@ -381,6 +380,11 @@ export class SeaRenderer {
   waveHeightAtTime(x: number, z: number, t: number): number {
     return heightFromModes(this.field.waveModes, x, z, t);
   }
+
+  /** The long waves the ships float on, as the sea has them now (re-seeding the sea replaces them). */
+  readonly buoyancyWaves: { readonly modes: readonly import('../sim/ocean/spectrum').WaveMode[] } = {
+    modes: [],
+  };
 
   /** Significant wave height estimate (m) used only for shading; the real field comes from the spectrum. */
   private estimateHs(): number {

@@ -1,8 +1,9 @@
 import { CALM, type Environment } from '../gunnery/ballistics';
 import type { ShellKind } from '../gunnery/shells';
+import { WaveField } from '../ocean/waves';
 import { Rng } from '../rng';
+import { Afloat, kickSeed } from '../ships/afloat';
 import { handlingFor, ShipDynamics } from '../ships/dynamics';
-import type { ShipFrame } from '../ships/frame';
 import { DuelAi, type AiProfile } from './ai';
 import { Combatant, type ShipReport } from './combatant';
 import type { ShipSetup } from './setup';
@@ -24,6 +25,8 @@ export interface DuelOptions {
   b: DuelSide;
   env?: Environment;
   visibilityKm?: number;
+  /** The waves the ships float on (default: the game's own sea; `WaveField.flat()` for the old flat water). */
+  waves?: WaveField;
 }
 
 export type DuelOutcome = 'a-won' | 'b-won' | 'draw' | 'running';
@@ -32,7 +35,7 @@ const DEG = Math.PI / 180;
 const END_STATES = new Set(['struck', 'sinking', 'sunk', 'exploded']);
 
 /**
- * A fight between two ships with no renderer: flat water, the full damage and gunnery models, and an AI on each side. It
+ * A fight between two ships with no renderer: the game's own sea under them, the full damage and gunnery models, and an AI on each side. It
  * exists to measure and tune the duel (how long it lasts, who wins, how often a magazine goes up) and is the same
  * simulation the game steps with its own ships.
  */
@@ -43,27 +46,26 @@ export class Duel {
   readonly aiB: DuelAi;
   time = 0;
   readonly log: ShipReport[] = [];
+  /** Each ship's hull on the waves, in the order a, b. */
+  readonly afloat: Afloat[] = [];
   private readonly step60 = 1 / 60;
+  private readonly kickRng: Rng;
 
   constructor(opts: DuelOptions) {
     const env = opts.env ?? CALM;
+    const waves = opts.waves ?? WaveField.fromSpec();
+    this.kickRng = new Rng(kickSeed(opts.seed));
     const make = (id: number, side: DuelSide, seed: number): Combatant => {
-      const dynamics = new ShipDynamics(handlingFor(side.setup.ship.hull.length, side.setup.maxSpeedKn, side.setup.handling));
+      const hull = side.setup.ship.hull;
+      const dynamics = new ShipDynamics(handlingFor(hull.length, side.setup.maxSpeedKn, side.setup.handling));
       dynamics.x = side.x;
       dynamics.z = side.z;
       dynamics.heading = side.headingDeg * DEG;
       dynamics.setTelegraph(3);
       dynamics.speed = dynamics.orderedSpeed;
-      const frame = (): ShipFrame => ({
-        x: dynamics.x,
-        y: 0,
-        z: dynamics.z,
-        heading: dynamics.heading,
-        pitch: 0,
-        roll: 0,
-        vx: Math.sin(dynamics.heading) * dynamics.speed,
-        vz: -Math.cos(dynamics.heading) * dynamics.speed,
-      });
+      const afloat = new Afloat(hull.length, hull.beam, waves);
+      this.afloat.push(afloat);
+      const frame = () => afloat.frame(dynamics);
       const c = new Combatant({
         id,
         name: side.setup.name,
@@ -86,6 +88,7 @@ export class Duel {
         plot: side.setup.plot,
       });
       if (side.shell) c.setShell(side.shell);
+      c.onHitMark = (mark) => afloat.hitKick(this.kickRng, mark);
       return c;
     };
     const rng = new Rng(opts.seed);
@@ -116,6 +119,9 @@ export class Duel {
     this.b.dynamics.step(dt);
     this.a.step(dt, this.time, ta);
     this.b.step(dt, this.time, tb);
+    // Both float on this moment's waves, with the shove of what they have just fired: after the guns, as in the game.
+    this.afloat[0]!.step(dt, this.time, this.a.dynamics, this.a.damage, this.a.batteries.map((u) => u.gunnery.battery));
+    this.afloat[1]!.step(dt, this.time, this.b.dynamics, this.b.damage, this.b.batteries.map((u) => u.gunnery.battery));
     this.log.push(...this.a.drainReports(), ...this.b.drainReports());
   }
 

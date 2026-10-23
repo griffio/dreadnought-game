@@ -57,11 +57,9 @@ export class PlayerShip extends ShipActor {
   }
 
   /** A battery of her own without a combatant (the showcase URLs): its kicks are hers too. */
-  protected override drainKicks(): void {
-    super.drainKicks();
-    if (this.combatant || !this.battery) return;
-    const kick = this.battery.drainKick();
-    if (kick.roll !== 0 || kick.pitch !== 0) this.body.kick(kick.roll, kick.pitch);
+  protected override kickers(): { drainKick(): { roll: number; pitch: number } }[] {
+    const own = super.kickers();
+    return !this.combatant && this.battery ? [...own, this.battery] : own;
   }
 
   /** Per rendered frame: draw her between steps and animate turrets. */

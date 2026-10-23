@@ -1,11 +1,11 @@
 import {
   cascadeBands,
-  dominantModes,
   generateH0,
   packSpectrum,
   type SpectrumParams,
   type WaveMode,
 } from '../../sim/ocean/spectrum';
+import { buoyancyModesOf, cascadeSeed, OCEAN_LOOP_SECONDS } from '../../sim/ocean/waves';
 import { Rng } from '../../sim/rng';
 import { createModule } from '../gpu-util';
 import assembleWgsl from './ocean_assemble.wgsl?raw';
@@ -15,7 +15,7 @@ import mipWgsl from './ocean_mip.wgsl?raw';
 import simWgsl from './ocean_sim.wgsl?raw';
 
 /** Seconds after which the whole wave field repeats (frequencies are quantised to this loop). */
-export const OCEAN_LOOP_SECONDS = 300;
+export { OCEAN_LOOP_SECONDS } from '../../sim/ocean/waves';
 
 export interface OceanFieldOptions {
   device: GPUDevice;
@@ -213,14 +213,10 @@ export class OceanField {
     const bands = cascadeBands(n, this.lengths);
     const packed = new Float32Array(this.cascades * n * n * 4);
     bands.forEach((band, c) => {
-      const h0 = generateH0(n, band, params, new Rng(seed * 7919 + c * 104729 + 1));
+      const h0 = generateH0(n, band, params, new Rng(cascadeSeed(seed, c)));
       packed.set(packSpectrum(h0, n), c * n * n * 4);
-      // Only waves long enough to move a ship (wavelength over ~25 m) matter for buoyancy.
-      if (c === 0) {
-        this.waveModes = dominantModes(h0, n, band, this.w0, 6000)
-          .filter((m) => Math.hypot(m.kx, m.kz) < (2 * Math.PI) / 25)
-          .slice(0, 500);
-      }
+      // The waves a ship floats on: the same modes the headless harnesses take from this spectrum (see sim/ocean/waves.ts).
+      if (c === 0) this.waveModes = buoyancyModesOf(h0, n, this.lengths);
     });
     this.setPackedSpectrum(packed);
   }

@@ -1,7 +1,8 @@
 import { CALM, type Environment } from '../gunnery/ballistics';
+import { WaveField } from '../ocean/waves';
 import { Rng } from '../rng';
+import { Afloat, kickSeed } from '../ships/afloat';
 import { handlingFor, ShipDynamics } from '../ships/dynamics';
-import type { ShipFrame } from '../ships/frame';
 import type { TorpedoEvent } from '../torpedo/world';
 import { DuelAi, type AiProfile } from './ai';
 import { Arena } from './arena';
@@ -31,19 +32,22 @@ export interface BattleOptions {
   ships: BattleShip[];
   env?: Environment;
   visibilityKm?: number;
+  /** The waves the ships float on (default: the game's own sea; `WaveField.flat()` for the old flat water). */
+  waves?: WaveField;
 }
 
 export type BattleOutcome = 'player-won' | 'player-lost' | 'draw' | 'running';
 
 interface Member {
   combatant: Combatant;
+  afloat: Afloat;
   brain: { update(now: number): boolean[] };
   side: 'player' | 'enemy';
   destroyer: DestroyerAi | null;
 }
 
 /**
- * A fight between any number of ships, headless: flat water, the full damage, gunnery and torpedo models, an AI on every ship
+ * A fight between any number of ships, headless: the game's own sea under them, the full damage, gunnery and torpedo models, an AI on every ship
  * but the player's, which is a bot. It is how the destroyer attack is measured and tuned, and runs the same simulation the
  * game steps with its own ships.
  */
@@ -59,24 +63,19 @@ export class Battle {
     this.arena = new Arena(opts.seed);
     this.arena.smoke.wind = [env.windX, env.windZ];
     const rng = new Rng(opts.seed);
+    const waves = opts.waves ?? WaveField.fromSpec();
+    const kickRng = new Rng(kickSeed(opts.seed));
     let id = 1;
     for (const s of opts.ships) {
-      const dynamics = new ShipDynamics(handlingFor(s.setup.ship.hull.length, s.setup.maxSpeedKn, s.setup.handling));
+      const hull = s.setup.ship.hull;
+      const dynamics = new ShipDynamics(handlingFor(hull.length, s.setup.maxSpeedKn, s.setup.handling));
       dynamics.x = s.x;
       dynamics.z = s.z;
       dynamics.heading = s.headingDeg * DEG;
       dynamics.setTelegraph(3);
       dynamics.speed = s.startKnots !== undefined ? s.startKnots * 0.514444 : dynamics.orderedSpeed;
-      const frame = (): ShipFrame => ({
-        x: dynamics.x,
-        y: 0,
-        z: dynamics.z,
-        heading: dynamics.heading,
-        pitch: 0,
-        roll: 0,
-        vx: Math.sin(dynamics.heading) * dynamics.speed,
-        vz: -Math.cos(dynamics.heading) * dynamics.speed,
-      });
+      const afloat = new Afloat(hull.length, hull.beam, waves);
+      const frame = () => afloat.frame(dynamics);
       const c = new Combatant({
         id: id++,
         name: s.setup.name,
@@ -96,8 +95,9 @@ export class Battle {
         ...setupExtras(s.setup),
       });
       if (s.side === 'player') c.damage.canStrike = false;
+      c.onHitMark = (mark) => afloat.hitKick(kickRng, mark);
       this.arena.add(c);
-      this.members.push({ combatant: c, brain: { update: () => [] }, side: s.side, destroyer: null });
+      this.members.push({ combatant: c, afloat, brain: { update: () => [] }, side: s.side, destroyer: null });
     }
     for (const m of this.members) {
       const others = this.members.filter((o) => o.side !== m.side).map((o) => o.combatant);
@@ -152,6 +152,8 @@ export class Battle {
     const triggers = this.members.map((m) => m.brain.update(this.time));
     for (const m of this.members) m.combatant.dynamics.step(dt);
     this.members.forEach((m, i) => m.combatant.step(dt, this.time, triggers[i]!));
+    // Every ship floats on this moment's waves, with the shove of what she has just fired: after the guns, as in the game.
+    for (const m of this.members) m.afloat.step(dt, this.time, m.combatant.dynamics, m.combatant.damage, m.combatant.batteries.map((u) => u.gunnery.battery));
     this.torpedoEvents.push(...this.arena.step(dt));
     for (const m of this.members) this.log.push(...m.combatant.drainReports());
   }

@@ -31,6 +31,7 @@ import { mountsFromSpec } from '../sim/gunnery/mounts';
 import { SpotterPlane } from '../sim/air/spotter';
 import { MineField } from '../sim/mines/mines';
 import { Rng } from '../sim/rng';
+import { kickSeed } from '../sim/ships/afloat';
 import { TELEGRAPH_MIN } from '../sim/ships/dynamics';
 import { Grounding } from '../sim/ships/grounding';
 import type { Terrain } from '../sim/terrain/terrain';
@@ -282,7 +283,7 @@ export class Game {
   ) {
     const seed = options.seed ?? 1914;
     this.seed = seed;
-    this.kickRng = new Rng(seed ^ 0x3a9f);
+    this.kickRng = new Rng(kickSeed(seed));
     this.practice = options.practice === true;
     const pace = options.pace ?? REAL;
     this.pace = pace;
@@ -587,11 +588,8 @@ export class Game {
     c.onHitMark = (mark) => {
       const actor = this.actorOf(c);
       actor.markHit(mark, this.simTime);
-      // A shell that bursts in her is felt through the hull: a shove that rolls and pitches her, in proportion to its weight.
-      if (mark.kind === 'burst' || mark.kind === 'shatter') {
-        const weight = Math.min(mark.caliberM / 0.38, 1.3) * (mark.kind === 'burst' ? 1 : 0.4);
-        actor.body.kick((this.kickRng.next() < 0.5 ? -1 : 1) * 0.012 * weight, (this.kickRng.next() - 0.5) * 0.008 * weight);
-      }
+      // A shell that bursts in her is felt through the hull (the same shove the harnesses give their ships).
+      actor.afloat.hitKick(this.kickRng, mark);
       if (ours && mark.kind === 'burst') this.cue('hit-taken');
     };
     if (ours) {

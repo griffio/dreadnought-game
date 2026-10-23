@@ -4,8 +4,10 @@ import { Fort, type FortSpec } from '../fort/fort';
 import { mountsFromSpec } from '../gunnery/mounts';
 import { SpotterPlane } from '../air/spotter';
 import { MineField } from '../mines/mines';
+import { WaveField } from '../ocean/waves';
+import { Rng } from '../rng';
+import { Afloat, kickSeed } from '../ships/afloat';
 import { handlingFor, ShipDynamics } from '../ships/dynamics';
-import type { ShipFrame } from '../ships/frame';
 import { Grounding } from '../ships/grounding';
 import type { Terrain } from '../terrain/terrain';
 import type { ShellEvent } from '../gunnery/shell-world';
@@ -29,6 +31,8 @@ export interface SiegeOptions {
   pace?: Pace;
   /** The round her main guns are loaded with (default: armour-piercing). */
   shell?: ShellKind;
+  /** The waves she floats on (default: the game's own sea; `WaveField.flat()` for the old flat water). */
+  waves?: WaveField;
 }
 
 /**
@@ -42,7 +46,10 @@ export class Siege {
   readonly player: Combatant;
   readonly plane: SpotterPlane;
   readonly grounding: Grounding;
+  /** Her hull on the waves. */
+  readonly afloat: Afloat;
   readonly log: ShipReport[] = [];
+  private readonly kickRng: Rng;
   time = 0;
   groundings = 0;
   mineHits = 0;
@@ -61,16 +68,9 @@ export class Siege {
     d.heading = opts.start.headingDeg * DEG;
     d.setTelegraph(2);
     d.speed = d.orderedSpeed;
-    const frame = (): ShipFrame => ({
-      x: d.x,
-      y: 0,
-      z: d.z,
-      heading: d.heading,
-      pitch: 0,
-      roll: 0,
-      vx: Math.sin(d.heading) * d.speed,
-      vz: -Math.cos(d.heading) * d.speed,
-    });
+    this.afloat = new Afloat(hull.length, hull.beam, opts.waves ?? WaveField.fromSpec());
+    this.kickRng = new Rng(kickSeed(opts.seed));
+    const frame = () => this.afloat.frame(d);
     this.player = new Combatant({
       id: 1,
       name: setup.name,
@@ -89,6 +89,7 @@ export class Siege {
       ...setupExtras(setup),
     });
     this.player.damage.canStrike = false;
+    this.player.onHitMark = (mark) => this.afloat.hitKick(this.kickRng, mark);
     if (opts.shell) this.player.setShell(opts.shell);
     this.grounding = new Grounding(opts.terrain, { length: hull.length, beam: hull.beam, draft: hull.draft });
 
@@ -126,6 +127,8 @@ export class Siege {
       this.player.damage.applyGrounding(g.at, g.impactSpeed);
     }
     const events: ShellEvent[] = this.player.step(dt, this.time, triggers);
+    // She floats on this moment's waves, with the shove of what she has just fired: after the guns, as in the game.
+    this.afloat.step(dt, this.time, this.dynamics, this.player.damage, this.player.batteries.map((u) => u.gunnery.battery));
     for (const f of this.forts) {
       const own = f.step(dt, this.time);
       for (const e of own) f.receive(e);

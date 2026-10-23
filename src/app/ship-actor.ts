@@ -6,7 +6,8 @@ import type { ShipInstance, ShipPaint } from '../render/ships/ship-renderer';
 import type { FireSite } from '../render/ships/fires';
 import { flagStreaming, rippleAt } from '../render/ships/flags';
 import { carry, sectionMatrix } from '../render/ships/section';
-import { BATTLESHIP_FLOATING, FloatingBody, fitWaterPlane } from '../sim/ships/buoyancy';
+import { Afloat } from '../sim/ships/afloat';
+import type { FloatingBody } from '../sim/ships/buoyancy';
 import { handlingFor, KNOT, ShipDynamics, type HandlingOverrides } from '../sim/ships/dynamics';
 import type { ShipFrame } from '../sim/ships/frame';
 import { WakeHistory, type WakeShip } from '../sim/ships/wake';
@@ -32,7 +33,8 @@ function lerpAngle(a: number, b: number, t: number): number {
 export class ShipActor implements WakeSource {
   readonly dynamics: ShipDynamics;
   readonly instance: ShipInstance;
-  readonly body: FloatingBody;
+  /** Her hull on the waves: the same body the headless harnesses float their ships with. */
+  readonly afloat: Afloat;
   readonly history = new WakeHistory();
   readonly ship: WakeShip;
   readonly hull: WakeSource['hull'];
@@ -69,7 +71,7 @@ export class ShipActor implements WakeSource {
     this.dynamics = new ShipDynamics(handlingFor(model.length, maxSpeedKn, handling));
     this.instance = sea.addShip(model);
     if (paint) this.instance.paint = { ...this.instance.paint, ...paint };
-    this.body = new FloatingBody(BATTLESHIP_FLOATING(model.length, model.beam));
+    this.afloat = new Afloat(model.length, model.beam, sea.buoyancyWaves);
     this.turretIds = new Set(model.turrets.map((t) => t.id));
     this.ship = { beam: model.beam, referenceSpeed: maxSpeedKn * KNOT };
     this.hull = { length: model.length, halfBreadthAt: model.waterlineHalfBreadthAt };
@@ -108,26 +110,21 @@ export class ShipActor implements WakeSource {
    * trim and settling, and the kicks of her own guns. After the guns have been stepped (their recoil is drained here).
    */
   stepBody(dt: number, simTime: number): void {
-    const d = this.dynamics;
     const b = this.body;
     this.prevBody.heave = b.heave;
     this.prevBody.pitch = b.pitch;
     this.prevBody.roll = b.roll;
-    this.drainKicks();
-    const headingDeg = (d.heading * 180) / Math.PI;
-    const plane = fitWaterPlane((x, z) => this.sea.waveHeightAtTime(x, z, simTime), d.x, d.z, headingDeg, this.model.length, this.model.beam);
-    const dm = this.damage;
-    // A ship broken in two does not capsize as a whole: she floats on the waves, and the halves go down by themselves.
-    const whole = this.broken === null;
-    b.update(dt, plane, d.turnHeel + (whole ? dm?.list ?? 0 : 0), whole ? dm?.trim ?? 0 : 0, whole ? dm?.sinkage ?? 0 : 0);
+    this.afloat.step(dt, simTime, this.dynamics, this.damage, this.kickers());
   }
 
-  /** The shove of each broadside fired since the last step, into her roll and pitch. */
-  protected drainKicks(): void {
-    for (const unit of this.combatant?.batteries ?? []) {
-      const kick = unit.gunnery.battery.drainKick();
-      if (kick.roll !== 0 || kick.pitch !== 0) this.body.kick(kick.roll, kick.pitch);
-    }
+  /** The guns whose recoil she feels: her combatant's batteries. */
+  protected kickers(): { drainKick(): { roll: number; pitch: number } }[] {
+    return (this.combatant?.batteries ?? []).map((unit) => unit.gunnery.battery);
+  }
+
+  /** Her heave, pitch and roll (and the impulses that disturb them). */
+  get body(): FloatingBody {
+    return this.afloat.body;
   }
 
   /** Velocity over the ground, m/s. */
@@ -138,9 +135,7 @@ export class ShipActor implements WakeSource {
 
   /** The ship as the gunnery simulation sees it: current position, attitude and velocity. */
   get frame(): ShipFrame {
-    const d = this.dynamics;
-    const [vx, vz] = this.velocity;
-    return { x: d.x, y: this.body.heave, z: d.z, heading: d.heading, pitch: this.body.pitch, roll: this.body.roll, vx, vz };
+    return this.afloat.frame(this.dynamics);
   }
 
   /** Interpolated state for the wake and the camera. */
